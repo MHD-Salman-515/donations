@@ -317,7 +317,7 @@ export async function setCampaignPartner(req, res) {
       entity_type: "campaign",
       entity_id: campaignId,
       meta: { partner_id: valid.value.partner_id },
-      actor_id: req.user?.id || null,
+      actor_id: Number(req.user?.id) || null,
     })
 
     return res.json({ ok: true, data: updated, meta: null })

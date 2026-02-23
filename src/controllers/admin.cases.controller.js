@@ -114,7 +114,7 @@ export async function patchCaseStatus(req, res) {
         to_status: valid.value.status,
         rejection_reason: updates.rejection_reason,
       },
-      actor_id: req.user?.id || null,
+      actor_id: Number(req.user?.id) || null,
     })
 
     return res.json({ data: updated, meta: null })
