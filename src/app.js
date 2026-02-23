@@ -19,6 +19,11 @@ import {
   beneficiaryCasesRoutes,
   publicCasesRoutes,
 } from "./routes/cases.routes.js"
+import {
+  adminEmergencyRoutes,
+  donorEmergencyRoutes,
+  publicEmergencyRoutes,
+} from "./routes/emergency.routes.js"
 import { CORS_ORIGIN_LIST, NODE_ENV } from "./config/env.js"
 import { errorHandler, notFound } from "./middlewares/error.middleware.js"
 import { detectLanguage } from "./middlewares/lang.middleware.js"
@@ -66,6 +71,9 @@ app.use("/api/cases", beneficiaryCasesRoutes)
 app.use("/api/admin/cases", adminCasesRoutes)
 app.use("/api/admin", adminCaseDocumentsRoutes)
 app.use("/api/public/cases", publicCasesRoutes)
+app.use("/api/public/emergency", publicEmergencyRoutes)
+app.use("/api/emergency", donorEmergencyRoutes)
+app.use("/api/admin/emergency", adminEmergencyRoutes)
 
 app.use(notFound)
 app.use(errorHandler)

@@ -26,7 +26,7 @@ function inDateRangeFilter(field, from, to) {
 }
 
 async function decorateDonation(d) {
-  const [campaign, caseRow, donor] = await Promise.all([
+  const [campaign, caseRow, emergencyFund, donor] = await Promise.all([
     d.campaign_id
       ? collections
           .campaigns()
@@ -36,6 +36,11 @@ async function decorateDonation(d) {
       ? collections
           .cases()
           .findOne({ id: d.case_id }, { projection: { _id: 0, title: 1, type: 1, status: 1 } })
+      : null,
+    d.emergency_id
+      ? collections
+          .emergencyFund()
+          .findOne({ id: d.emergency_id }, { projection: { _id: 0, id: 1, title: 1, enabled: 1, currency: 1 } })
       : null,
     collections.users().findOne({ id: d.donor_id }, { projection: { _id: 0, name: 1, email: 1 } }),
   ])
@@ -47,6 +52,9 @@ async function decorateDonation(d) {
     case_title: caseRow?.title || null,
     case_type: caseRow?.type || null,
     case_status: caseRow?.status || null,
+    emergency_title: emergencyFund?.title || null,
+    emergency_enabled: emergencyFund?.enabled ?? null,
+    emergency_currency: emergencyFund?.currency || null,
     donor_name: donor?.name || null,
     donor_email: donor?.email || null,
   }
@@ -56,9 +64,20 @@ export async function createDonation(req, res) {
   try {
     const campaign_id = toId(req.body?.campaign_id)
     const case_id = toId(req.body?.case_id)
+    const emergency_id = toId(req.body?.emergency_id)
     const amount = parseAmount(req.body?.amount)
     const payment_method = normalizeText(req.body?.payment_method)
     const payment_status = normalizeText(req.body?.payment_status)
+
+    if (req.body?.campaign_id !== undefined && !campaign_id) {
+      return res.status(400).json({ message: "invalid campaign_id" })
+    }
+    if (req.body?.case_id !== undefined && !case_id) {
+      return res.status(400).json({ message: "invalid case_id" })
+    }
+    if (req.body?.emergency_id !== undefined && !emergency_id) {
+      return res.status(400).json({ message: "invalid emergency_id" })
+    }
 
     if (Number.isNaN(amount)) {
       return res.status(400).json({ message: "amount is required" })
@@ -66,8 +85,12 @@ export async function createDonation(req, res) {
 
     const hasCampaign = Boolean(campaign_id)
     const hasCase = Boolean(case_id)
-    if ((hasCampaign && hasCase) || (!hasCampaign && !hasCase)) {
-      return res.status(400).json({ message: "exactly one of campaign_id or case_id is required" })
+    const hasEmergency = Boolean(emergency_id)
+    const targetsCount = Number(hasCampaign) + Number(hasCase) + Number(hasEmergency)
+    if (targetsCount !== 1) {
+      return res
+        .status(400)
+        .json({ message: "exactly one of campaign_id or case_id or emergency_id is required" })
     }
 
     if (amount <= 0) {
@@ -104,16 +127,29 @@ export async function createDonation(req, res) {
         return res.status(400).json({ message: "only active campaigns accept donations" })
       }
     } else {
-      const caseRow = await collections
-        .cases()
-        .findOne({ id: case_id }, { projection: { _id: 0, id: 1, status: 1 } })
+      if (hasCase) {
+        const caseRow = await collections
+          .cases()
+          .findOne({ id: case_id }, { projection: { _id: 0, id: 1, status: 1 } })
 
-      if (!caseRow) {
-        return res.status(404).json({ message: "case not found" })
-      }
+        if (!caseRow) {
+          return res.status(404).json({ message: "case not found" })
+        }
 
-      if (!["approved", "active"].includes(caseRow.status)) {
-        return res.status(400).json({ message: "only approved or active cases accept donations" })
+        if (!["approved", "active"].includes(caseRow.status)) {
+          return res.status(400).json({ message: "only approved or active cases accept donations" })
+        }
+      } else {
+        const emergencyFund = await collections
+          .emergencyFund()
+          .findOne({ id: emergency_id }, { projection: { _id: 0, id: 1, enabled: 1 } })
+
+        if (!emergencyFund) {
+          return res.status(404).json({ message: "emergency fund not found" })
+        }
+        if (!emergencyFund.enabled) {
+          return res.status(400).json({ message: "emergency fund is disabled" })
+        }
       }
     }
 
@@ -124,6 +160,7 @@ export async function createDonation(req, res) {
       id,
       ...(hasCampaign ? { campaign_id } : {}),
       ...(hasCase ? { case_id } : {}),
+      ...(hasEmergency ? { emergency_id } : {}),
       donor_id,
       amount,
       payment_method,
@@ -132,10 +169,16 @@ export async function createDonation(req, res) {
       updated_at: now,
     })
 
+    if (hasEmergency) {
+      await collections
+        .emergencyFund()
+        .updateOne({ id: emergency_id }, { $inc: { raised_amount: amount }, $set: { updated_at: now } })
+    }
+
     const created = await collections.donations().findOne({ id }, { projection: { _id: 0 } })
 
     await logAudit(null, req, {
-      action: hasCase ? "donation_created" : "donations_create",
+      action: hasEmergency ? "emergency_donation_created" : hasCase ? "donation_created" : "donations_create",
       entity_type: "donation",
       entity_id: id,
       meta: {
@@ -144,6 +187,7 @@ export async function createDonation(req, res) {
         payment_status,
         ...(hasCampaign && { campaign_id }),
         ...(hasCase && { case_id }),
+        ...(hasEmergency && { emergency_id }),
       },
       actor_id: donor_id,
     })
@@ -158,6 +202,7 @@ export async function listDonations(req, res) {
   try {
     const campaign_id = req.query?.campaign_id ? toId(req.query.campaign_id) : null
     const case_id = req.query?.case_id ? toId(req.query.case_id) : null
+    const emergency_id = req.query?.emergency_id ? toId(req.query.emergency_id) : null
     const donor_id = req.query?.donor_id ? toId(req.query.donor_id) : null
     const from = normalizeText(req.query?.from)
     const to = normalizeText(req.query?.to)
@@ -174,9 +219,14 @@ export async function listDonations(req, res) {
       return res.status(400).json({ message: "invalid case_id filter" })
     }
 
+    if (req.query?.emergency_id && !emergency_id) {
+      return res.status(400).json({ message: "invalid emergency_id filter" })
+    }
+
     const filter = {
       ...(campaign_id && { campaign_id }),
       ...(case_id && { case_id }),
+      ...(emergency_id && { emergency_id }),
       ...(donor_id && { donor_id }),
       ...inDateRangeFilter("created_at", from, to),
     }

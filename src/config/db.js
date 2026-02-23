@@ -12,6 +12,7 @@ const REQUIRED_COLLECTIONS = [
   "cases",
   "case_documents",
   "case_updates",
+  "emergency_fund",
 ]
 
 let client
@@ -39,6 +40,7 @@ export const collections = {
   cases: () => getDb().collection("cases"),
   caseDocuments: () => getDb().collection("case_documents"),
   caseUpdates: () => getDb().collection("case_updates"),
+  emergencyFund: () => getDb().collection("emergency_fund"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -72,6 +74,7 @@ async function ensureCounters() {
     seedCounterIfMissing("cases", "cases"),
     seedCounterIfMissing("case_documents", "case_documents"),
     seedCounterIfMissing("case_updates", "case_updates"),
+    seedCounterIfMissing("emergency_fund", "emergency_fund"),
   ])
 }
 
@@ -108,7 +111,7 @@ async function createIndexSafe(collectionName, spec, options = {}, duplicateHelp
 }
 
 async function ensureIndexes() {
-  // TODO(phase4): Consider additional analytics indexes for mixed campaign/case donation reporting.
+  // TODO(phase5): Consider additional analytics indexes for mixed campaign/case/emergency reporting.
   await createIndexSafe(
     "users",
     { email: 1 },
@@ -141,6 +144,17 @@ async function ensureIndexes() {
     "donations",
     { donor_id: 1, created_at: -1 },
     { name: "donations_donor_id_created_at_desc" }
+  )
+  await createIndexSafe(
+    "donations",
+    { emergency_id: 1, created_at: -1 },
+    { name: "donations_emergency_created_at" }
+  )
+  await createIndexSafe(
+    "emergency_fund",
+    { id: 1 },
+    { unique: true, name: "emergency_fund_id_unique" },
+    "db.emergency_fund.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
   )
   await createIndexSafe(
     "cases",
@@ -222,6 +236,26 @@ async function seedAdsIfEnabled() {
   })
 }
 
+async function seedEmergencyFundIfMissing() {
+  const existing = await collections.emergencyFund().findOne({ id: 1 })
+  if (existing) return
+
+  const now = new Date()
+  await collections.emergencyFund().insertOne({
+    id: 1,
+    title: "Emergency Fund",
+    description: "Urgent humanitarian support fund",
+    enabled: true,
+    target_amount: 100000,
+    raised_amount: 0,
+    currency: "USD",
+    start_date: null,
+    end_date: null,
+    created_at: now,
+    updated_at: now,
+  })
+}
+
 export async function connectToDatabase() {
   if (database) return database
 
@@ -239,6 +273,7 @@ export async function connectToDatabase() {
   await ensureIndexes()
   await seedDefaultSettings()
   await seedAdsIfEnabled()
+  await seedEmergencyFundIfMissing()
 
   console.log(`Connected to MongoDB Atlas (db: ${DB_NAME || "donations_db"})`)
   return database
