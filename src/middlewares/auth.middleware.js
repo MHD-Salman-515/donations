@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken"
+import { normalizeLang } from "../utils/i18n.js"
 
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || ""
@@ -10,7 +11,19 @@ export function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
+    // TODO: enforce typ === "access" strictly after all clients migrate to typ-bearing tokens.
+    if (payload?.typ && payload.typ !== "access") {
+      return res.status(401).json({ message: "invalid token type" })
+    }
     req.user = payload
+
+    const hasHeaderLang =
+      Boolean(req.headers["x-lang"]) || Boolean(req.headers["accept-language"])
+    const userLang = normalizeLang(req.user?.preferredLanguage)
+    if (!hasHeaderLang && userLang) {
+      req.lang = userLang
+    }
+
     next()
   } catch {
     return res.status(401).json({ message: "invalid/expired token" })

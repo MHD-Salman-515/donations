@@ -2,11 +2,11 @@ import crypto from "crypto"
 import jwt from "jsonwebtoken"
 
 export function createAccessToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "15m" })
+  return jwt.sign({ ...payload, typ: "access" }, process.env.JWT_SECRET, { expiresIn: "15m" })
 }
 
 export function createRefreshToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "30d" })
+  return jwt.sign({ ...payload, typ: "refresh" }, process.env.JWT_SECRET, { expiresIn: "30d" })
 }
 
 export function hashToken(token) {

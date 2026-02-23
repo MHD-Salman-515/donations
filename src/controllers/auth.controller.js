@@ -30,6 +30,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     status: user.status,
+    preferredLanguage: user.preferredLanguage || "ar",
     created_at: user.created_at,
   }
 }
@@ -68,6 +69,7 @@ export async function register(req, res) {
       password_hash,
       role: safeRole,
       status: "active",
+      preferredLanguage: "ar",
       failed_login_attempts: 0,
       locked_until: null,
       created_at: now,
@@ -82,6 +84,7 @@ export async function register(req, res) {
       id: user.id,
       role: user.role,
       email: user.email,
+      preferredLanguage: user.preferredLanguage || "ar",
     })
 
     return res.status(201).json({ token, user })
@@ -142,8 +145,19 @@ export async function login(req, res) {
       { $set: { failed_login_attempts: 0, locked_until: null, updated_at: new Date() } }
     )
 
-    const token = createAccessToken({ id: user.id, role: user.role, email: user.email })
-    const refreshToken = createRefreshToken({ id: user.id, role: user.role, email: user.email })
+    const preferredLanguage = user.preferredLanguage || "ar"
+    const token = createAccessToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      preferredLanguage,
+    })
+    const refreshToken = createRefreshToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      preferredLanguage,
+    })
     const refreshTokenHash = hashToken(refreshToken)
     const userAgent = req.headers["user-agent"] || null
     const ip = getRequestIp(req)
@@ -204,7 +218,12 @@ export async function refresh(req, res) {
       return res.status(403).json({ message: "account is inactive" })
     }
 
-    const token = createAccessToken({ id: user.id, role: user.role, email: user.email })
+    const token = createAccessToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      preferredLanguage: user.preferredLanguage || "ar",
+    })
 
     await logAudit(null, req, {
       action: "auth_refresh",

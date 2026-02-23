@@ -9,6 +9,9 @@ const REQUIRED_COLLECTIONS = [
   "refresh_tokens",
   "settings",
   "advertisements",
+  "cases",
+  "case_documents",
+  "case_updates",
 ]
 
 let client
@@ -33,6 +36,9 @@ export const collections = {
   refreshTokens: () => getDb().collection("refresh_tokens"),
   settings: () => getDb().collection("settings"),
   advertisements: () => getDb().collection("advertisements"),
+  cases: () => getDb().collection("cases"),
+  caseDocuments: () => getDb().collection("case_documents"),
+  caseUpdates: () => getDb().collection("case_updates"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -63,6 +69,9 @@ async function ensureCounters() {
     seedCounterIfMissing("audit_logs", "audit_logs"),
     seedCounterIfMissing("refresh_tokens", "refresh_tokens"),
     seedCounterIfMissing("advertisements", "advertisements"),
+    seedCounterIfMissing("cases", "cases"),
+    seedCounterIfMissing("case_documents", "case_documents"),
+    seedCounterIfMissing("case_updates", "case_updates"),
   ])
 }
 
@@ -99,6 +108,7 @@ async function createIndexSafe(collectionName, spec, options = {}, duplicateHelp
 }
 
 async function ensureIndexes() {
+  // TODO(phase4): Consider additional analytics indexes for mixed campaign/case donation reporting.
   await createIndexSafe(
     "users",
     { email: 1 },
@@ -121,6 +131,51 @@ async function ensureIndexes() {
     "advertisements",
     { status: 1, start_date: 1, end_date: 1 },
     { name: "advertisements_status_start_end" }
+  )
+  await createIndexSafe(
+    "donations",
+    { case_id: 1, created_at: -1 },
+    { name: "donations_case_id_created_at_desc" }
+  )
+  await createIndexSafe(
+    "donations",
+    { donor_id: 1, created_at: -1 },
+    { name: "donations_donor_id_created_at_desc" }
+  )
+  await createIndexSafe(
+    "cases",
+    { status: 1, type: 1 },
+    { name: "cases_status_type" }
+  )
+  await createIndexSafe(
+    "cases",
+    { beneficiary_id: 1, created_at: -1 },
+    { name: "cases_beneficiary_created_at_desc" }
+  )
+  await createIndexSafe(
+    "cases",
+    { priority: 1, status: 1 },
+    { name: "cases_priority_status" }
+  )
+  await createIndexSafe(
+    "cases",
+    { location: "2dsphere" },
+    { name: "cases_location_2dsphere" }
+  )
+  await createIndexSafe(
+    "case_documents",
+    { case_id: 1, created_at: -1 },
+    { name: "case_documents_case_id_created_at_desc" }
+  )
+  await createIndexSafe(
+    "case_documents",
+    { case_id: 1, type: 1 },
+    { name: "case_documents_case_id_type" }
+  )
+  await createIndexSafe(
+    "case_updates",
+    { case_id: 1, created_at: -1 },
+    { name: "case_updates_case_id_created_at_desc" }
   )
 }
 
