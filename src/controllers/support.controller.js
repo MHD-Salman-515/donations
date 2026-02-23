@@ -13,15 +13,19 @@ function toId(value) {
 
 export async function createCampaignSupportMessage(req, res) {
   try {
-    const campaign_id = toId(req.params.id)
-    if (!campaign_id) return res.status(400).json({ ok: false, message: "invalid campaign id" })
+    const campaignId = Number(req.params.id)
+    if (!Number.isFinite(campaignId)) {
+      return res.status(400).json({ ok: false, message: "invalid campaign id" })
+    }
 
-    const actor_user_id = req.user?.id
-    if (!actor_user_id) return res.status(401).json({ ok: false, message: "unauthorized" })
+    const actorUserId = Number(req.user?.id)
+    if (!Number.isFinite(actorUserId)) {
+      return res.status(401).json({ ok: false, message: "invalid user id" })
+    }
 
     const campaign = await collections
       .campaigns()
-      .findOne({ id: campaign_id }, { projection: { _id: 0, id: 1, status: 1 } })
+      .findOne({ id: campaignId }, { projection: { _id: 0, id: 1, status: 1 } })
     if (!campaign) return res.status(404).json({ ok: false, message: "campaign not found" })
     if (campaign.status !== "active") {
       return res.status(400).json({ ok: false, message: "only active campaigns accept support messages" })
@@ -32,8 +36,8 @@ export async function createCampaignSupportMessage(req, res) {
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const attempts = await collections.campaignSupportMessages().countDocuments({
-      campaign_id,
-      actor_user_id,
+      campaign_id: campaignId,
+      actor_user_id: actorUserId,
       created_at: { $gte: since },
     })
     if (attempts >= 3) {
@@ -48,8 +52,8 @@ export async function createCampaignSupportMessage(req, res) {
 
     await collections.campaignSupportMessages().insertOne({
       id,
-      campaign_id,
-      actor_user_id,
+      campaign_id: campaignId,
+      actor_user_id: actorUserId,
       type: payload.type,
       quick_key: payload.quick_key,
       message: payload.message,
@@ -66,8 +70,8 @@ export async function createCampaignSupportMessage(req, res) {
       action: "support_create",
       entity_type: "campaign_support_message",
       entity_id: id,
-      meta: { campaign_id, type: payload.type, status: payload.status },
-      actor_id: actor_user_id,
+      meta: { campaign_id: campaignId, type: payload.type, status: payload.status },
+      actor_id: actorUserId,
     })
 
     return res.status(201).json({ ok: true, data: created, meta: null })
@@ -110,14 +114,18 @@ export async function listCampaignSupportMessages(req, res) {
 
 export async function reportSupportMessage(req, res) {
   try {
-    const support_id = toId(req.params.supportId)
-    if (!support_id) return res.status(400).json({ ok: false, message: "invalid support id" })
-    const reporter_user_id = req.user?.id
-    if (!reporter_user_id) return res.status(401).json({ ok: false, message: "unauthorized" })
+    const supportId = Number(req.params.supportId)
+    if (!Number.isFinite(supportId)) {
+      return res.status(400).json({ ok: false, message: "invalid support id" })
+    }
+    const reporterUserId = Number(req.user?.id)
+    if (!Number.isFinite(reporterUserId)) {
+      return res.status(401).json({ ok: false, message: "invalid user id" })
+    }
 
     const support = await collections
       .campaignSupportMessages()
-      .findOne({ id: support_id }, { projection: { _id: 0, id: 1, campaign_id: 1, status: 1 } })
+      .findOne({ id: supportId }, { projection: { _id: 0, id: 1, campaign_id: 1, status: 1 } })
     if (!support) return res.status(404).json({ ok: false, message: "support message not found" })
 
     const valid = validateReportBody(req.body || {})
@@ -125,7 +133,7 @@ export async function reportSupportMessage(req, res) {
 
     const duplicate = await collections
       .supportReports()
-      .findOne({ support_id, reporter_user_id }, { projection: { _id: 0, id: 1 } })
+      .findOne({ support_id: supportId, reporter_user_id: reporterUserId }, { projection: { _id: 0, id: 1 } })
     if (duplicate) {
       return res.status(409).json({ ok: false, message: "support message already reported by this user" })
     }
@@ -134,17 +142,17 @@ export async function reportSupportMessage(req, res) {
     const id = await nextSequence("support_reports")
     await collections.supportReports().insertOne({
       id,
-      support_id,
-      reporter_user_id,
+      support_id: supportId,
+      reporter_user_id: reporterUserId,
       reason: valid.value.reason,
       note: valid.value.note,
       created_at: now,
     })
 
-    const totalReports = await collections.supportReports().countDocuments({ support_id })
+    const totalReports = await collections.supportReports().countDocuments({ support_id: supportId })
     if (totalReports >= 3) {
       await collections.campaignSupportMessages().updateOne(
-        { id: support_id },
+        { id: supportId },
         {
           $set: {
             status: "flagged",
@@ -158,8 +166,8 @@ export async function reportSupportMessage(req, res) {
       action: "support_report",
       entity_type: "support_report",
       entity_id: id,
-      meta: { support_id, reason: valid.value.reason },
-      actor_id: reporter_user_id,
+      meta: { support_id: supportId, reason: valid.value.reason },
+      actor_id: reporterUserId,
     })
 
     const created = await collections.supportReports().findOne({ id }, { projection: { _id: 0 } })
