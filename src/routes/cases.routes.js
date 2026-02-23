@@ -15,6 +15,7 @@ import {
   listAdminCases,
   patchCasePriority,
   patchCaseStatus,
+  setCasePartner,
   verifyCaseDocument,
 } from "../controllers/admin.cases.controller.js"
 import { listCaseDonationsAdmin } from "../controllers/donations.controller.js"
@@ -32,6 +33,7 @@ adminCasesRoutes.use(requireAuth, requireRole("admin"))
 adminCasesRoutes.get("/", listAdminCases)
 adminCasesRoutes.patch("/:id/status", patchCaseStatus)
 adminCasesRoutes.patch("/:id/priority", patchCasePriority)
+adminCasesRoutes.patch("/:id/partner", setCasePartner)
 adminCasesRoutes.post("/:id/updates", addCaseUpdate)
 adminCasesRoutes.get("/:id/donations", listCaseDonationsAdmin)
 

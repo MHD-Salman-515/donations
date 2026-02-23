@@ -10,6 +10,7 @@ import {
   validateCreateCaseUpdateBody,
   validateVerifyCaseDocumentBody,
 } from "../validators/cases.validation.js"
+import { validatePartnerLinkBody } from "../validators/partners.validation.js"
 
 function toId(value) {
   const id = Number(value)
@@ -227,5 +228,43 @@ export async function addCaseUpdate(req, res) {
     return res.status(201).json({ data: created, meta: null })
   } catch (err) {
     return res.status(500).json({ message: "failed to add case update", error: err.message })
+  }
+}
+
+export async function setCasePartner(req, res) {
+  try {
+    const caseId = toId(req.params.id)
+    if (!caseId) return res.status(400).json({ ok: false, message: "invalid case id" })
+
+    const valid = validatePartnerLinkBody(req.body || {})
+    if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
+
+    const caseRow = await collections.cases().findOne({ id: caseId }, { projection: { _id: 0 } })
+    if (!caseRow) return res.status(404).json({ ok: false, message: "case not found" })
+
+    if (valid.value.partner_id !== null) {
+      const partner = await collections
+        .partners()
+        .findOne({ id: valid.value.partner_id, status: "active" }, { projection: { _id: 0, id: 1 } })
+      if (!partner) return res.status(404).json({ ok: false, message: "active partner not found" })
+    }
+
+    await collections
+      .cases()
+      .updateOne({ id: caseId }, { $set: { partner_id: valid.value.partner_id, updated_at: new Date() } })
+
+    const updated = await collections.cases().findOne({ id: caseId }, { projection: { _id: 0 } })
+
+    await logAudit(null, req, {
+      action: "case_partner_set",
+      entity_type: "case",
+      entity_id: caseId,
+      meta: { partner_id: valid.value.partner_id },
+      actor_id: req.user?.id || null,
+    })
+
+    return res.json({ ok: true, data: updated, meta: null })
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: "failed to set case partner", error: err.message })
   }
 }

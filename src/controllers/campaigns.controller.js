@@ -1,5 +1,6 @@
 import { collections, nextSequence } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
+import { validatePartnerLinkBody } from "../validators/partners.validation.js"
 
 const ALLOWED_CATEGORIES = ["education", "health", "relief", "construction", "general"]
 
@@ -284,5 +285,43 @@ export async function deleteCampaign(req, res) {
     return res.json({ message: "campaign deleted" })
   } catch (err) {
     return res.status(500).json({ message: "failed to delete campaign", error: err.message })
+  }
+}
+
+export async function setCampaignPartner(req, res) {
+  try {
+    const campaignId = toId(req.params.id)
+    if (!campaignId) return res.status(400).json({ ok: false, message: "invalid campaign id" })
+
+    const valid = validatePartnerLinkBody(req.body || {})
+    if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
+
+    const campaign = await collections.campaigns().findOne({ id: campaignId }, { projection: { _id: 0 } })
+    if (!campaign) return res.status(404).json({ ok: false, message: "campaign not found" })
+
+    if (valid.value.partner_id !== null) {
+      const partner = await collections
+        .partners()
+        .findOne({ id: valid.value.partner_id, status: "active" }, { projection: { _id: 0, id: 1 } })
+      if (!partner) return res.status(404).json({ ok: false, message: "active partner not found" })
+    }
+
+    await collections
+      .campaigns()
+      .updateOne({ id: campaignId }, { $set: { partner_id: valid.value.partner_id, updated_at: new Date() } })
+
+    const updated = await collections.campaigns().findOne({ id: campaignId }, { projection: { _id: 0 } })
+
+    await logAudit(null, req, {
+      action: "campaign_partner_set",
+      entity_type: "campaign",
+      entity_id: campaignId,
+      meta: { partner_id: valid.value.partner_id },
+      actor_id: req.user?.id || null,
+    })
+
+    return res.json({ ok: true, data: updated, meta: null })
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: "failed to set campaign partner", error: err.message })
   }
 }

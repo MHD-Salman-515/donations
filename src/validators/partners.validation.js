@@ -173,3 +173,20 @@ export function validatePartnerListFilters(query, { admin = false } = {}) {
 
   return { ok: true, value: { filter } }
 }
+
+export function validatePartnerLinkBody(body) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, "partner_id")) {
+    return { ok: false, message: "partner_id is required" }
+  }
+
+  if (body.partner_id === null) {
+    return { ok: true, value: { partner_id: null } }
+  }
+
+  const partnerId = Number(body.partner_id)
+  if (!Number.isInteger(partnerId) || partnerId <= 0) {
+    return { ok: false, message: "invalid partner_id" }
+  }
+
+  return { ok: true, value: { partner_id: partnerId } }
+}
