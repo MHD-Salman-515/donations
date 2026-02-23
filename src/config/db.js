@@ -15,6 +15,7 @@ const REQUIRED_COLLECTIONS = [
   "emergency_fund",
   "campaign_support_messages",
   "support_reports",
+  "partners",
 ]
 
 let client
@@ -45,6 +46,7 @@ export const collections = {
   emergencyFund: () => getDb().collection("emergency_fund"),
   campaignSupportMessages: () => getDb().collection("campaign_support_messages"),
   supportReports: () => getDb().collection("support_reports"),
+  partners: () => getDb().collection("partners"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -81,6 +83,7 @@ async function ensureCounters() {
     seedCounterIfMissing("emergency_fund", "emergency_fund"),
     seedCounterIfMissing("campaign_support_messages", "campaign_support_messages"),
     seedCounterIfMissing("support_reports", "support_reports"),
+    seedCounterIfMissing("partners", "partners"),
   ])
 }
 
@@ -221,6 +224,16 @@ async function ensureIndexes() {
     "support_reports",
     { reporter_user_id: 1, created_at: -1 },
     { name: "support_reports_reporter_created_at_desc" }
+  )
+  await createIndexSafe(
+    "partners",
+    { status: 1, created_at: -1 },
+    { name: "partners_status_created_at_desc" }
+  )
+  await createIndexSafe(
+    "partners",
+    { name: 1 },
+    { name: "partners_name_idx" }
   )
 }
 

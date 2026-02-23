@@ -15,6 +15,7 @@ import auditRoutes from "./routes/audit.routes.js"
 import campaignsI18nRoutes from "./routes/campaigns.i18n.routes.js"
 import supportRoutes from "./routes/support.routes.js"
 import adminSupportRoutes from "./routes/admin.support.routes.js"
+import { adminPartnersRoutes, publicPartnersRoutes } from "./routes/partners.routes.js"
 import {
   adminCaseDocumentsRoutes,
   adminCasesRoutes,
@@ -65,6 +66,7 @@ app.use("/api/users", userRoutes)
 app.use("/api/campaigns", campaignsRoutes)
 app.use("/api/i18n/campaigns", campaignsI18nRoutes)
 app.use("/api/support", supportRoutes)
+app.use("/api/public/partners", publicPartnersRoutes)
 app.use("/api/donations", donationsRoutes)
 app.use("/api/reports", reportsRoutes)
 app.use("/api/ads", adsRoutes)
@@ -73,6 +75,7 @@ app.use("/api/audit", auditRoutes)
 app.use("/api/cases", beneficiaryCasesRoutes)
 app.use("/api/admin/cases", adminCasesRoutes)
 app.use("/api/admin/support", adminSupportRoutes)
+app.use("/api/admin/partners", adminPartnersRoutes)
 app.use("/api/admin", adminCaseDocumentsRoutes)
 app.use("/api/public/cases", publicCasesRoutes)
 app.use("/api/public/emergency", publicEmergencyRoutes)
