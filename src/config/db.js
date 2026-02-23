@@ -13,6 +13,8 @@ const REQUIRED_COLLECTIONS = [
   "case_documents",
   "case_updates",
   "emergency_fund",
+  "campaign_support_messages",
+  "support_reports",
 ]
 
 let client
@@ -41,6 +43,8 @@ export const collections = {
   caseDocuments: () => getDb().collection("case_documents"),
   caseUpdates: () => getDb().collection("case_updates"),
   emergencyFund: () => getDb().collection("emergency_fund"),
+  campaignSupportMessages: () => getDb().collection("campaign_support_messages"),
+  supportReports: () => getDb().collection("support_reports"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -75,6 +79,8 @@ async function ensureCounters() {
     seedCounterIfMissing("case_documents", "case_documents"),
     seedCounterIfMissing("case_updates", "case_updates"),
     seedCounterIfMissing("emergency_fund", "emergency_fund"),
+    seedCounterIfMissing("campaign_support_messages", "campaign_support_messages"),
+    seedCounterIfMissing("support_reports", "support_reports"),
   ])
 }
 
@@ -190,6 +196,31 @@ async function ensureIndexes() {
     "case_updates",
     { case_id: 1, created_at: -1 },
     { name: "case_updates_case_id_created_at_desc" }
+  )
+  await createIndexSafe(
+    "campaign_support_messages",
+    { campaign_id: 1, created_at: -1 },
+    { name: "campaign_support_messages_campaign_created_at_desc" }
+  )
+  await createIndexSafe(
+    "campaign_support_messages",
+    { actor_user_id: 1, campaign_id: 1, created_at: -1 },
+    { name: "campaign_support_messages_actor_campaign_created_at_desc" }
+  )
+  await createIndexSafe(
+    "campaign_support_messages",
+    { status: 1, created_at: -1 },
+    { name: "campaign_support_messages_status_created_at_desc" }
+  )
+  await createIndexSafe(
+    "support_reports",
+    { support_id: 1, created_at: -1 },
+    { name: "support_reports_support_created_at_desc" }
+  )
+  await createIndexSafe(
+    "support_reports",
+    { reporter_user_id: 1, created_at: -1 },
+    { name: "support_reports_reporter_created_at_desc" }
   )
 }
 

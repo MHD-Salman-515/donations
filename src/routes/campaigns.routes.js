@@ -8,8 +8,15 @@ import {
   setCampaignStatus,
   deleteCampaign,
 } from "../controllers/campaigns.controller.js"
+import {
+  createCampaignSupportMessage,
+  listCampaignSupportMessages,
+} from "../controllers/support.controller.js"
 
 const router = Router()
+
+router.get("/:id/support", listCampaignSupportMessages)
+router.post("/:id/support", requireAuth, requireRole("donor", "admin"), createCampaignSupportMessage)
 
 router.use(requireAuth)
 
