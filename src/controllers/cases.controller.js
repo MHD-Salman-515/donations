@@ -3,13 +3,13 @@ import {
   ALLOWED_CASE_EDITABLE_STATUSES,
   ALLOWED_CASE_PRIORITIES,
   ALLOWED_CASE_STATUSES,
-  ALLOWED_CASE_TYPES,
   parsePagination,
   validateCreateCaseBody,
   validateCreateCaseDocumentBody,
   validatePublicMapQuery,
   validateUpdateCaseBody,
 } from "../validators/cases.validation.js"
+import { isValidActiveCaseType, normalizeSectionKey } from "../utils/mainSections.js"
 
 function toId(value) {
   const id = Number(value)
@@ -39,13 +39,12 @@ function toPublicCase(doc) {
 }
 
 function buildPublicFilter(query) {
-  const type = normalizeText(query?.type)
+  const type = normalizeSectionKey(query?.type)
   const category = normalizeText(query?.category)
   const q = normalizeText(query?.q)
   const city = normalizeText(query?.city)
   const priority = normalizeText(query?.priority)
 
-  if (type && !ALLOWED_CASE_TYPES.includes(type)) return { error: "invalid type" }
   if (priority && !ALLOWED_CASE_PRIORITIES.includes(priority)) return { error: "invalid priority" }
 
   const filter = {
@@ -73,6 +72,8 @@ export async function createCase(req, res) {
     const now = new Date()
     const id = await nextSequence("cases")
     const payload = valid.value
+    const isValidType = await isValidActiveCaseType(payload.type)
+    if (!isValidType) return res.status(400).json({ message: "Invalid or inactive case type" })
 
     await collections.cases().insertOne({
       id,
@@ -118,6 +119,11 @@ export async function updateCase(req, res) {
 
     const valid = validateUpdateCaseBody(req.body || {})
     if (!valid.ok) return res.status(400).json({ message: valid.message })
+
+    if (valid.value.type !== undefined) {
+      const isValidType = await isValidActiveCaseType(valid.value.type)
+      if (!isValidType) return res.status(400).json({ message: "Invalid or inactive case type" })
+    }
 
     const updates = { ...valid.value, updated_at: new Date() }
     const result = await collections.cases().updateOne({ id }, { $set: updates })
@@ -226,6 +232,11 @@ export async function listPublicCases(req, res) {
   try {
     const built = buildPublicFilter(req.query || {})
     if (built.error) return res.status(400).json({ message: built.error })
+
+    if (built.filter.type) {
+      const isValidType = await isValidActiveCaseType(built.filter.type)
+      if (!isValidType) return res.status(400).json({ message: "invalid type" })
+    }
 
     const { page, limit, skip } = parsePagination(req.query, 10, 50)
     const total = await collections.cases().countDocuments(built.filter)

@@ -16,6 +16,7 @@ const REQUIRED_COLLECTIONS = [
   "campaign_support_messages",
   "support_reports",
   "partners",
+  "main_sections",
 ]
 
 let client
@@ -47,6 +48,7 @@ export const collections = {
   campaignSupportMessages: () => getDb().collection("campaign_support_messages"),
   supportReports: () => getDb().collection("support_reports"),
   partners: () => getDb().collection("partners"),
+  mainSections: () => getDb().collection("main_sections"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -234,6 +236,17 @@ async function ensureIndexes() {
     "partners",
     { name: 1 },
     { name: "partners_name_idx" }
+  )
+  await createIndexSafe(
+    "main_sections",
+    { key: 1 },
+    { unique: true, name: "main_sections_key_unique" },
+    "db.main_sections.aggregate([{ $group: { _id: '$key', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "main_sections",
+    { isActive: 1, order: 1 },
+    { name: "main_sections_active_order" }
   )
 }
 

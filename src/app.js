@@ -31,6 +31,8 @@ import {
 import { CORS_ORIGIN_LIST, NODE_ENV } from "./config/env.js"
 import { errorHandler, notFound } from "./middlewares/error.middleware.js"
 import { detectLanguage } from "./middlewares/lang.middleware.js"
+import mainSectionsRoutes from "./routes/mainSections.routes.js"
+import adminMainSectionsRoutes from "./routes/admin.mainSections.routes.js"
 
 const app = express()
 
@@ -83,6 +85,8 @@ app.use("/api/public/cases", publicCasesRoutes)
 app.use("/api/public/emergency", publicEmergencyRoutes)
 app.use("/api/emergency", donorEmergencyRoutes)
 app.use("/api/admin/emergency", adminEmergencyRoutes)
+app.use("/api/main-sections", mainSectionsRoutes)
+app.use("/api/admin/main-sections", adminMainSectionsRoutes)
 
 app.use(notFound)
 app.use(errorHandler)

@@ -3,7 +3,6 @@ import { logAudit } from "../utils/audit.js"
 import {
   ALLOWED_CASE_PRIORITIES,
   ALLOWED_CASE_STATUSES,
-  ALLOWED_CASE_TYPES,
   parsePagination,
   validateAdminPriorityPatchBody,
   validateAdminStatusPatchBody,
@@ -11,6 +10,7 @@ import {
   validateVerifyCaseDocumentBody,
 } from "../validators/cases.validation.js"
 import { validatePartnerLinkBody } from "../validators/partners.validation.js"
+import { isKnownCaseType, normalizeSectionKey } from "../utils/mainSections.js"
 
 function toId(value) {
   const id = Number(value)
@@ -37,7 +37,7 @@ function buildDateFilter(field, from, to) {
 export async function listAdminCases(req, res) {
   try {
     const status = normalizeText(req.query?.status)
-    const type = normalizeText(req.query?.type)
+    const type = normalizeSectionKey(req.query?.type)
     const priority = normalizeText(req.query?.priority)
     const q = normalizeText(req.query?.q)
     const from = normalizeText(req.query?.from)
@@ -45,7 +45,10 @@ export async function listAdminCases(req, res) {
     const beneficiary_id = req.query?.beneficiary_id ? toId(req.query.beneficiary_id) : null
 
     if (status && !ALLOWED_CASE_STATUSES.includes(status)) return res.status(400).json({ message: "invalid status" })
-    if (type && !ALLOWED_CASE_TYPES.includes(type)) return res.status(400).json({ message: "invalid type" })
+    if (type) {
+      const isKnownType = await isKnownCaseType(type)
+      if (!isKnownType) return res.status(400).json({ message: "invalid type" })
+    }
     if (priority && !ALLOWED_CASE_PRIORITIES.includes(priority)) {
       return res.status(400).json({ message: "invalid priority" })
     }

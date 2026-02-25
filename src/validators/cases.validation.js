@@ -1,11 +1,3 @@
-const ALLOWED_CASE_TYPES = [
-  "medical",
-  "reconstruction",
-  "humanitarian",
-  "orphan_sponsorship",
-  "elderly_support",
-]
-
 const ALLOWED_CASE_STATUSES = [
   "draft",
   "submitted",
@@ -128,7 +120,7 @@ export function parsePagination(query, defaultLimit = 10, maxLimit = 100) {
 }
 
 export function validateCreateCaseBody(body) {
-  const type = normalizeText(body?.type)
+  const type = normalizeText(body?.type).toLowerCase()
   const title = normalizeText(body?.title)
   const description = normalizeText(body?.description)
   const category = normalizeText(body?.category)
@@ -150,7 +142,6 @@ export function validateCreateCaseBody(body) {
   ) {
     return { ok: false, message: "type, title, description, category, target_amount, currency are required" }
   }
-  if (!ALLOWED_CASE_TYPES.includes(type)) return { ok: false, message: "invalid type" }
   if (!ALLOWED_CASE_CREATE_STATUSES.includes(status)) return { ok: false, message: "invalid status" }
   if (!ALLOWED_CASE_PRIORITIES.includes(priority)) return { ok: false, message: "invalid priority" }
   if (!ALLOWED_PRIVACY_MODES.includes(privacy_mode)) return { ok: false, message: "invalid privacy_mode" }
@@ -185,8 +176,8 @@ export function validateUpdateCaseBody(body) {
   const updates = {}
 
   if (body?.type !== undefined) {
-    const type = normalizeText(body.type)
-    if (!ALLOWED_CASE_TYPES.includes(type)) return { ok: false, message: "invalid type" }
+    const type = normalizeText(body.type).toLowerCase()
+    if (!type) return { ok: false, message: "invalid type" }
     updates.type = type
   }
   if (body?.title !== undefined) {
@@ -360,7 +351,6 @@ export function validatePublicMapQuery(query) {
 }
 
 export {
-  ALLOWED_CASE_TYPES,
   ALLOWED_CASE_STATUSES,
   ALLOWED_CASE_EDITABLE_STATUSES,
   ALLOWED_CASE_PRIORITIES,
