@@ -109,6 +109,8 @@ function transformMainSectionForPublic(section, lang) {
       : section.followUp?.templates
   }
 
+  delete transformed.access
+
   return transformed
 }
 
@@ -117,6 +119,8 @@ export async function listMainSections(req, res) {
     const lang = req.query.lang === "en" ? "en" : "ar"
     res.set("X-MainSections-Lang", lang)
     res.set("X-MainSections-Localized", "1")
+    res.set("X-I18N-Transform", "table-value-v1")
+    res.set("X-I18N-Lang", lang)
     const rows = await collections
       .mainSections()
       .find({ isActive: true }, { projection: DEFAULT_PUBLIC_PROJECTION })
@@ -136,6 +140,8 @@ export async function getMainSectionByKey(req, res) {
     const lang = req.query.lang === "en" ? "en" : "ar"
     res.set("X-MainSections-Lang", lang)
     res.set("X-MainSections-Localized", "1")
+    res.set("X-I18N-Transform", "table-value-v1")
+    res.set("X-I18N-Lang", lang)
     const key = normalizeSectionKey(req.params?.key)
     if (!key) return res.status(400).json({ message: "invalid key" })
 
