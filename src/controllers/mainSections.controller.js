@@ -47,6 +47,12 @@ function transformMainSectionForPublic(section, lang) {
     ? section.table.map((row) => ({
         ...row,
         label: pickLang(row?.label, lang),
+        value:
+          row?.value &&
+          typeof row.value === "object" &&
+          !Array.isArray(row.value)
+            ? pickLang(row.value, lang)
+            : row?.value,
       }))
     : section?.table
 
