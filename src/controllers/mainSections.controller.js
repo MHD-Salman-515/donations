@@ -109,6 +109,8 @@ function transformMainSectionForPublic(section, lang) {
 export async function listMainSections(req, res) {
   try {
     const lang = req.query.lang === "en" ? "en" : "ar"
+    res.set("X-MainSections-Lang", lang)
+    res.set("X-MainSections-Localized", "1")
     const rows = await collections
       .mainSections()
       .find({ isActive: true }, { projection: DEFAULT_PUBLIC_PROJECTION })
@@ -126,6 +128,8 @@ export async function listMainSections(req, res) {
 export async function getMainSectionByKey(req, res) {
   try {
     const lang = req.query.lang === "en" ? "en" : "ar"
+    res.set("X-MainSections-Lang", lang)
+    res.set("X-MainSections-Localized", "1")
     const key = normalizeSectionKey(req.params?.key)
     if (!key) return res.status(400).json({ message: "invalid key" })
 
