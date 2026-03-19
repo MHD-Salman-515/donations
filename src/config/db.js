@@ -17,6 +17,7 @@ const REQUIRED_COLLECTIONS = [
   "support_reports",
   "partners",
   "main_sections",
+  "store_applications",
 ]
 
 let client
@@ -49,6 +50,7 @@ export const collections = {
   supportReports: () => getDb().collection("support_reports"),
   partners: () => getDb().collection("partners"),
   mainSections: () => getDb().collection("main_sections"),
+  storeApplications: () => getDb().collection("store_applications"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -86,6 +88,7 @@ async function ensureCounters() {
     seedCounterIfMissing("campaign_support_messages", "campaign_support_messages"),
     seedCounterIfMissing("support_reports", "support_reports"),
     seedCounterIfMissing("partners", "partners"),
+    seedCounterIfMissing("store_applications", "store_applications"),
   ])
 }
 
@@ -236,6 +239,37 @@ async function ensureIndexes() {
     "partners",
     { name: 1 },
     { name: "partners_name_idx" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { id: 1 },
+    { unique: true, name: "store_applications_id_unique" },
+    "db.store_applications.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "store_applications",
+    { status: 1 },
+    { name: "store_applications_status_idx" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { email: 1 },
+    { name: "store_applications_email_idx" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { created_at: -1 },
+    { name: "store_applications_created_at_desc" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { city: 1 },
+    { name: "store_applications_city_idx" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { business_category: 1 },
+    { name: "store_applications_business_category_idx" }
   )
   await createIndexSafe(
     "main_sections",

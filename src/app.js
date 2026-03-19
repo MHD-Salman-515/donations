@@ -33,6 +33,10 @@ import { errorHandler, notFound } from "./middlewares/error.middleware.js"
 import { detectLanguage } from "./middlewares/lang.middleware.js"
 import mainSectionsRoutes from "./routes/mainSections.routes.js"
 import adminMainSectionsRoutes from "./routes/admin.mainSections.routes.js"
+import {
+  adminStoreApplicationsRoutes,
+  publicStoreApplicationsRoutes,
+} from "./routes/storeApplications.routes.js"
 
 const app = express()
 
@@ -87,6 +91,8 @@ app.use("/api/emergency", donorEmergencyRoutes)
 app.use("/api/admin/emergency", adminEmergencyRoutes)
 app.use("/api/main-sections", mainSectionsRoutes)
 app.use("/api/admin/main-sections", adminMainSectionsRoutes)
+app.use("/api/store-applications", publicStoreApplicationsRoutes)
+app.use("/api/admin/store-applications", adminStoreApplicationsRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
