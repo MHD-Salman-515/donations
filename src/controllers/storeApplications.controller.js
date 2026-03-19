@@ -43,6 +43,7 @@ export async function createStoreApplication(req, res) {
       id,
       ...valid.value,
       status: "pending",
+      partner_id: null,
       reviewed_by: null,
       reviewed_at: null,
       created_at: now,
@@ -129,16 +130,65 @@ export async function approveStoreApplication(req, res) {
 
     const current = await collections.storeApplications().findOne({ id }, { projection: { _id: 0 } })
     if (!current) return res.status(404).json({ ok: false, message: "store application not found" })
-    if (current.status === "approved") {
-      return res.status(400).json({ ok: false, message: "application is already approved" })
+    if (current.status !== "pending") {
+      return res.status(400).json({ ok: false, message: "only pending applications can be approved" })
+    }
+    if (current.partner_id) {
+      return res.status(409).json({ ok: false, message: "application is already linked to a partner" })
     }
 
+    const existingPartner = await collections
+      .partners()
+      .findOne({ created_from_application_id: id }, { projection: { _id: 0, id: 1, name: 1, partner_type: 1, status: 1 } })
+    if (existingPartner) {
+      return res
+        .status(409)
+        .json({ ok: false, message: "partner already exists for this application", data: { partner: existingPartner } })
+    }
+
+    const validTarget = await targetExists(current.target_type, current.target_id)
+    if (!validTarget) return res.status(404).json({ ok: false, message: "target not found for this application" })
+
     const now = new Date()
+    const partnerId = await nextSequence("partners")
+    const partnerPayload = {
+      id: partnerId,
+      name: current.store_name,
+      owner_name: current.owner_name,
+      contact_person: current.owner_name,
+      phone: current.phone,
+      email: current.email,
+      city: current.city,
+      business_category: current.business_category,
+      description: current.description || null,
+      donation_mode: current.donation_mode,
+      donation_value: current.donation_value,
+      default_target_type: current.target_type,
+      default_target_id: current.target_id,
+      partner_type: "store",
+      created_from_application_id: id,
+      contact: {
+        email: current.email,
+        phone: current.phone,
+        website: null,
+      },
+      location: {
+        city: current.city,
+        country: null,
+      },
+      status: "active",
+      created_at: now,
+      updated_at: now,
+    }
+
+    await collections.partners().insertOne(partnerPayload)
+
     await collections.storeApplications().updateOne(
       { id },
       {
         $set: {
           status: "approved",
+          partner_id: partnerId,
           reviewed_by: req.user?.id || null,
           reviewed_at: now,
           updated_at: now,
@@ -147,16 +197,30 @@ export async function approveStoreApplication(req, res) {
     )
 
     const updated = await collections.storeApplications().findOne({ id }, { projection: { _id: 0 } })
+    const partnerSummary = {
+      id: partnerPayload.id,
+      name: partnerPayload.name,
+      type: partnerPayload.partner_type,
+      status: partnerPayload.status,
+    }
+
+    await logAudit(null, req, {
+      action: "store_partner_created_from_application",
+      entity_type: "partner",
+      entity_id: partnerPayload.id,
+      meta: { application_id: id, partner_type: "store" },
+      actor_id: req.user?.id || null,
+    })
 
     await logAudit(null, req, {
       action: "store_application_approved",
       entity_type: "store_application",
       entity_id: id,
-      meta: { from_status: current.status, to_status: "approved" },
+      meta: { from_status: current.status, to_status: "approved", partner_id: partnerPayload.id },
       actor_id: req.user?.id || null,
     })
 
-    return res.json({ ok: true, data: updated, meta: null })
+    return res.json({ ok: true, data: { ...updated, partner: partnerSummary }, meta: null })
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to approve store application", error: err.message })
   }
@@ -205,4 +269,3 @@ export async function rejectStoreApplication(req, res) {
     return res.status(500).json({ ok: false, message: "failed to reject store application", error: err.message })
   }
 }
-

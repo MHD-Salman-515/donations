@@ -241,6 +241,11 @@ async function ensureIndexes() {
     { name: "partners_name_idx" }
   )
   await createIndexSafe(
+    "partners",
+    { partner_type: 1, status: 1, created_at: -1 },
+    { name: "partners_type_status_created_at_desc" }
+  )
+  await createIndexSafe(
     "store_applications",
     { id: 1 },
     { unique: true, name: "store_applications_id_unique" },
@@ -270,6 +275,11 @@ async function ensureIndexes() {
     "store_applications",
     { business_category: 1 },
     { name: "store_applications_business_category_idx" }
+  )
+  await createIndexSafe(
+    "store_applications",
+    { partner_id: 1 },
+    { name: "store_applications_partner_id_idx" }
   )
   await createIndexSafe(
     "main_sections",

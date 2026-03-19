@@ -37,6 +37,10 @@ export function validateCreateStoreApplicationBody(body) {
   const target_id = toId(body?.target_id)
   const donation_value = Number(body?.donation_value)
   const notes = normalizeText(body?.notes) || null
+  const applicant_user_id =
+    body?.applicant_user_id === undefined || body?.applicant_user_id === null
+      ? null
+      : toId(body?.applicant_user_id)
 
   if (
     !store_name ||
@@ -63,6 +67,9 @@ export function validateCreateStoreApplicationBody(body) {
   }
   if (!ALLOWED_TARGET_TYPES.includes(target_type)) return { ok: false, message: "invalid target_type" }
   if (donation_value <= 0) return { ok: false, message: "donation_value must be > 0" }
+  if (body?.applicant_user_id !== undefined && body?.applicant_user_id !== null && !applicant_user_id) {
+    return { ok: false, message: "invalid applicant_user_id" }
+  }
 
   return {
     ok: true,
@@ -79,6 +86,7 @@ export function validateCreateStoreApplicationBody(body) {
       target_type,
       target_id,
       notes,
+      applicant_user_id,
     },
   }
 }
@@ -117,4 +125,3 @@ export function validateRejectStoreApplicationBody(body) {
     },
   }
 }
-

@@ -68,7 +68,9 @@ Body:
 Expected:
 - `200`
 - `data.status = "approved"`
+- `data.partner_id` is filled
 - `data.reviewed_by` and `data.reviewed_at` are filled
+- `data.partner` includes partner summary (`id`, `name`, `type`, `status`)
 
 ## 5) Admin: Reject Application
 
@@ -89,4 +91,3 @@ Expected:
 - `200`
 - `data.status = "rejected"`
 - `data.notes` contains rejection notes
-
