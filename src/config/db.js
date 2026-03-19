@@ -18,6 +18,7 @@ const REQUIRED_COLLECTIONS = [
   "partners",
   "main_sections",
   "store_applications",
+  "store_products",
 ]
 
 let client
@@ -51,6 +52,7 @@ export const collections = {
   partners: () => getDb().collection("partners"),
   mainSections: () => getDb().collection("main_sections"),
   storeApplications: () => getDb().collection("store_applications"),
+  storeProducts: () => getDb().collection("store_products"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -89,6 +91,7 @@ async function ensureCounters() {
     seedCounterIfMissing("support_reports", "support_reports"),
     seedCounterIfMissing("partners", "partners"),
     seedCounterIfMissing("store_applications", "store_applications"),
+    seedCounterIfMissing("store_products", "store_products"),
   ])
 }
 
@@ -285,6 +288,32 @@ async function ensureIndexes() {
     "store_applications",
     { partner_id: 1 },
     { name: "store_applications_partner_id_idx" }
+  )
+  await createIndexSafe(
+    "store_products",
+    { id: 1 },
+    { unique: true, name: "store_products_id_unique" },
+    "db.store_products.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "store_products",
+    { partner_id: 1 },
+    { name: "store_products_partner_id_idx" }
+  )
+  await createIndexSafe(
+    "store_products",
+    { status: 1 },
+    { name: "store_products_status_idx" }
+  )
+  await createIndexSafe(
+    "store_products",
+    { title: "text" },
+    { name: "store_products_title_text_idx" }
+  )
+  await createIndexSafe(
+    "store_products",
+    { created_at: -1 },
+    { name: "store_products_created_at_desc" }
   )
   await createIndexSafe(
     "main_sections",
