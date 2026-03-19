@@ -9,7 +9,7 @@ import {
 } from "../controllers/storeApplications.controller.js"
 
 const publicStoreApplicationsRoutes = Router()
-publicStoreApplicationsRoutes.post("/", createStoreApplication)
+publicStoreApplicationsRoutes.post("/", requireAuth, requireRole("donor", "admin"), createStoreApplication)
 
 const adminStoreApplicationsRoutes = Router()
 adminStoreApplicationsRoutes.use(requireAuth, requireRole("admin"))
@@ -19,4 +19,3 @@ adminStoreApplicationsRoutes.patch("/:id/approve", approveStoreApplication)
 adminStoreApplicationsRoutes.patch("/:id/reject", rejectStoreApplication)
 
 export { publicStoreApplicationsRoutes, adminStoreApplicationsRoutes }
-

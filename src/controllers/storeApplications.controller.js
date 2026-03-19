@@ -32,6 +32,7 @@ export async function createStoreApplication(req, res) {
   try {
     const valid = validateCreateStoreApplicationBody(req.body || {})
     if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
+    if (!req.user?.id) return res.status(401).json({ ok: false, message: "unauthorized" })
 
     const exists = await targetExists(valid.value.target_type, valid.value.target_id)
     if (!exists) return res.status(404).json({ ok: false, message: "target not found" })
@@ -42,6 +43,7 @@ export async function createStoreApplication(req, res) {
     await collections.storeApplications().insertOne({
       id,
       ...valid.value,
+      applicant_user_id: req.user.id,
       status: "pending",
       partner_id: null,
       reviewed_by: null,
@@ -133,6 +135,9 @@ export async function approveStoreApplication(req, res) {
     if (current.status !== "pending") {
       return res.status(400).json({ ok: false, message: "only pending applications can be approved" })
     }
+    if (!current.applicant_user_id) {
+      return res.status(400).json({ ok: false, message: "application is not linked to an applicant user" })
+    }
     if (current.partner_id) {
       return res.status(409).json({ ok: false, message: "application is already linked to a partner" })
     }
@@ -165,6 +170,7 @@ export async function approveStoreApplication(req, res) {
       donation_value: current.donation_value,
       default_target_type: current.target_type,
       default_target_id: current.target_id,
+      user_id: current.applicant_user_id,
       partner_type: "store",
       created_from_application_id: id,
       contact: {

@@ -7,6 +7,7 @@ Base URL examples assume `http://localhost:5000`.
 `POST /api/store-applications`
 
 Headers:
+- `Authorization: Bearer <access_token>`
 - `Content-Type: application/json`
 
 Body:
@@ -29,6 +30,7 @@ Body:
 Expected:
 - `201`
 - `{ ok: true, data, meta }`
+- `data.applicant_user_id` is set automatically from authenticated user
 
 ## 2) Admin: List Applications
 
@@ -91,3 +93,14 @@ Expected:
 - `200`
 - `data.status = "rejected"`
 - `data.notes` contains rejection notes
+
+## 6) Store: My Store Profile
+
+`GET /api/store/profile`
+
+Headers:
+- `Authorization: Bearer <access_token>`
+
+Expected:
+- `200`
+- `{ ok: true, data: { user, store }, meta: null }`

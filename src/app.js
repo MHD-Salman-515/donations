@@ -37,6 +37,7 @@ import {
   adminStoreApplicationsRoutes,
   publicStoreApplicationsRoutes,
 } from "./routes/storeApplications.routes.js"
+import storeRoutes from "./routes/store.routes.js"
 
 const app = express()
 
@@ -93,6 +94,7 @@ app.use("/api/main-sections", mainSectionsRoutes)
 app.use("/api/admin/main-sections", adminMainSectionsRoutes)
 app.use("/api/store-applications", publicStoreApplicationsRoutes)
 app.use("/api/admin/store-applications", adminStoreApplicationsRoutes)
+app.use("/api/store", storeRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
