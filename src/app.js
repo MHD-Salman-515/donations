@@ -39,6 +39,7 @@ import {
 } from "./routes/storeApplications.routes.js"
 import storeRoutes from "./routes/store.routes.js"
 import { publicStoreProductsRoutes, storeProductsRoutes } from "./routes/storeProducts.routes.js"
+import ordersRoutes from "./routes/orders.routes.js"
 
 const app = express()
 
@@ -98,6 +99,7 @@ app.use("/api/admin/store-applications", adminStoreApplicationsRoutes)
 app.use("/api/store", storeRoutes)
 app.use("/api/store/products", storeProductsRoutes)
 app.use("/api/public/store-products", publicStoreProductsRoutes)
+app.use("/api/orders", ordersRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
