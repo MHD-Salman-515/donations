@@ -4,12 +4,14 @@ import {
   approveStoreApplication,
   createStoreApplication,
   getAdminStoreApplication,
+  getMyStoreApplication,
   listAdminStoreApplications,
   rejectStoreApplication,
 } from "../controllers/storeApplications.controller.js"
 
 const publicStoreApplicationsRoutes = Router()
-publicStoreApplicationsRoutes.post("/", requireAuth, requireRole("donor", "admin"), createStoreApplication)
+publicStoreApplicationsRoutes.post("/", requireAuth, createStoreApplication)
+publicStoreApplicationsRoutes.get("/my", requireAuth, getMyStoreApplication)
 
 const adminStoreApplicationsRoutes = Router()
 adminStoreApplicationsRoutes.use(requireAuth, requireRole("admin"))

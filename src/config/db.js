@@ -293,6 +293,15 @@ async function ensureIndexes() {
     { name: "store_applications_partner_id_idx" }
   )
   await createIndexSafe(
+    "store_applications",
+    { applicant_user_id: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { status: { $in: ["pending", "approved"] } },
+      name: "store_applications_user_pending_or_approved_unique",
+    }
+  )
+  await createIndexSafe(
     "store_products",
     { id: 1 },
     { unique: true, name: "store_products_id_unique" },

@@ -11,6 +11,13 @@ function toId(value) {
   return Number.isInteger(id) && id > 0 ? id : null
 }
 
+function toStoreApplicationOutput(row) {
+  if (!row) return null
+  const rejection_reason = row.rejection_reason ?? row.notes ?? null
+  const { notes, ...rest } = row
+  return { ...rest, rejection_reason }
+}
+
 async function targetExists(target_type, target_id) {
   if (target_type === "campaign") {
     const row = await collections.campaigns().findOne({ id: target_id }, { projection: { _id: 0, id: 1 } })
@@ -34,6 +41,21 @@ export async function createStoreApplication(req, res) {
     if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
     if (!req.user?.id) return res.status(401).json({ ok: false, message: "unauthorized" })
 
+    const existingActiveApplication = await collections.storeApplications().findOne(
+      {
+        applicant_user_id: req.user.id,
+        status: { $in: ["pending", "approved"] },
+      },
+      { projection: { _id: 0, id: 1, status: 1 } }
+    )
+    if (existingActiveApplication) {
+      return res.status(409).json({
+        ok: false,
+        message: "you already have a pending or approved store application",
+        data: existingActiveApplication,
+      })
+    }
+
     const exists = await targetExists(valid.value.target_type, valid.value.target_id)
     if (!exists) return res.status(404).json({ ok: false, message: "target not found" })
 
@@ -45,6 +67,7 @@ export async function createStoreApplication(req, res) {
       ...valid.value,
       applicant_user_id: req.user.id,
       status: "pending",
+      rejection_reason: null,
       partner_id: null,
       reviewed_by: null,
       reviewed_at: null,
@@ -66,9 +89,37 @@ export async function createStoreApplication(req, res) {
       actor_id: null,
     })
 
-    return res.status(201).json({ ok: true, data: created, meta: null })
+    return res.status(201).json({ ok: true, data: toStoreApplicationOutput(created), meta: null })
   } catch (err) {
+    if (err?.code === 11000) {
+      return res
+        .status(409)
+        .json({ ok: false, message: "you already have a pending or approved store application" })
+    }
     return res.status(500).json({ ok: false, message: "failed to create store application", error: err.message })
+  }
+}
+
+export async function getMyStoreApplication(req, res) {
+  try {
+    if (!req.user?.id) return res.status(401).json({ ok: false, message: "unauthorized" })
+
+    const approved = await collections.storeApplications().findOne(
+      { applicant_user_id: req.user.id, status: "approved" },
+      { projection: { _id: 0 }, sort: { id: -1 } }
+    )
+    if (approved) {
+      return res.json({ ok: true, data: toStoreApplicationOutput(approved), meta: null })
+    }
+
+    const latest = await collections.storeApplications().findOne(
+      { applicant_user_id: req.user.id },
+      { projection: { _id: 0 }, sort: { id: -1 } }
+    )
+
+    return res.json({ ok: true, data: toStoreApplicationOutput(latest), meta: null })
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: "failed to get my store application", error: err.message })
   }
 }
 
@@ -103,7 +154,7 @@ export async function listAdminStoreApplications(req, res) {
 
     return res.json({
       ok: true,
-      data: rows,
+      data: rows.map(toStoreApplicationOutput),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     })
   } catch (err) {
@@ -119,7 +170,7 @@ export async function getAdminStoreApplication(req, res) {
     const row = await collections.storeApplications().findOne({ id }, { projection: { _id: 0 } })
     if (!row) return res.status(404).json({ ok: false, message: "store application not found" })
 
-    return res.json({ ok: true, data: row, meta: null })
+    return res.json({ ok: true, data: toStoreApplicationOutput(row), meta: null })
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to get store application", error: err.message })
   }
@@ -226,7 +277,11 @@ export async function approveStoreApplication(req, res) {
       actor_id: req.user?.id || null,
     })
 
-    return res.json({ ok: true, data: { ...updated, partner: partnerSummary }, meta: null })
+    return res.json({
+      ok: true,
+      data: { ...toStoreApplicationOutput(updated), partner: partnerSummary },
+      meta: null,
+    })
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to approve store application", error: err.message })
   }
@@ -242,8 +297,11 @@ export async function rejectStoreApplication(req, res) {
 
     const current = await collections.storeApplications().findOne({ id }, { projection: { _id: 0 } })
     if (!current) return res.status(404).json({ ok: false, message: "store application not found" })
-    if (current.status === "rejected") {
-      return res.status(400).json({ ok: false, message: "application is already rejected" })
+    if (current.status !== "pending") {
+      return res.status(400).json({ ok: false, message: "only pending applications can be rejected" })
+    }
+    if (current.partner_id) {
+      return res.status(409).json({ ok: false, message: "application is already linked to a partner" })
     }
 
     const now = new Date()
@@ -252,7 +310,7 @@ export async function rejectStoreApplication(req, res) {
       {
         $set: {
           status: "rejected",
-          notes: valid.value.notes,
+          rejection_reason: valid.value.rejection_reason,
           reviewed_by: req.user?.id || null,
           reviewed_at: now,
           updated_at: now,
@@ -266,11 +324,11 @@ export async function rejectStoreApplication(req, res) {
       action: "store_application_rejected",
       entity_type: "store_application",
       entity_id: id,
-      meta: { from_status: current.status, to_status: "rejected", notes: valid.value.notes },
+      meta: { from_status: current.status, to_status: "rejected", rejection_reason: valid.value.rejection_reason },
       actor_id: req.user?.id || null,
     })
 
-    return res.json({ ok: true, data: updated, meta: null })
+    return res.json({ ok: true, data: toStoreApplicationOutput(updated), meta: null })
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to reject store application", error: err.message })
   }

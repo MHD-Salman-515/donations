@@ -36,7 +36,6 @@ export function validateCreateStoreApplicationBody(body) {
   const target_type = normalizeText(body?.target_type)
   const target_id = toId(body?.target_id)
   const donation_value = Number(body?.donation_value)
-  const notes = normalizeText(body?.notes) || null
   const applicant_user_id =
     body?.applicant_user_id === undefined || body?.applicant_user_id === null
       ? null
@@ -85,7 +84,6 @@ export function validateCreateStoreApplicationBody(body) {
       donation_value,
       target_type,
       target_id,
-      notes,
       applicant_user_id,
     },
   }
@@ -114,14 +112,14 @@ export function validateStoreApplicationsAdminFilters(query) {
 }
 
 export function validateRejectStoreApplicationBody(body) {
-  if (body?.notes !== undefined && typeof body.notes !== "string") {
-    return { ok: false, message: "notes must be a string" }
+  if (body?.rejection_reason !== undefined && typeof body.rejection_reason !== "string") {
+    return { ok: false, message: "rejection_reason must be a string" }
   }
 
   return {
     ok: true,
     value: {
-      notes: normalizeText(body?.notes) || null,
+      rejection_reason: normalizeText(body?.rejection_reason) || null,
     },
   }
 }

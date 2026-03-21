@@ -125,104 +125,132 @@ export async function createOrder(req, res) {
 
     const now = new Date()
     const stockResult = await collections.storeProducts().updateOne(
-      { id: product.id, stock: { $gte: quantity } },
+      { id: product.id, status: "active", stock: { $gte: quantity } },
       { $inc: { stock: -quantity }, $set: { updated_at: now } }
     )
     if (!stockResult.matchedCount) {
       return res.status(400).json({ ok: false, message: "insufficient stock" })
     }
 
-    const updatedProduct = await collections
-      .storeProducts()
-      .findOne({ id: product.id }, { projection: { _id: 0, id: 1, stock: 1, status: 1 } })
-    if (updatedProduct?.stock === 0 && updatedProduct?.status !== "out_of_stock") {
-      await collections
+    let order_id = null
+    let donation_id = null
+    try {
+      const updatedProduct = await collections
         .storeProducts()
-        .updateOne({ id: product.id }, { $set: { status: "out_of_stock", updated_at: new Date() } })
-    }
+        .findOne({ id: product.id }, { projection: { _id: 0, id: 1, stock: 1, status: 1 } })
+      if (updatedProduct?.stock === 0 && updatedProduct?.status !== "out_of_stock") {
+        await collections
+          .storeProducts()
+          .updateOne({ id: product.id }, { $set: { status: "out_of_stock", updated_at: new Date() } })
+      }
 
-    const order_id = await nextSequence("orders")
-    const orderDoc = {
-      id: order_id,
-      user_id,
-      partner_id: partner.id,
-      product_id: product.id,
-      quantity,
-      price,
-      total_amount,
-      profit_amount,
-      donation_amount,
-      donation_type: donationConfig.donation_type,
-      target_type: donationConfig.target_type,
-      target_id: donationConfig.target_id,
-      status: "completed",
-      created_at: now,
-    }
-    await collections.orders().insertOne(orderDoc)
-
-    const donation_id = await nextSequence("donations")
-    const donationDoc = {
-      id: donation_id,
-      donor_id: user_id,
-      amount: donation_amount,
-      payment_method: "card",
-      payment_status: "paid",
-      order_id,
-      created_at: now,
-      updated_at: now,
-      ...(donationConfig.target_type === "campaign" ? { campaign_id: donationConfig.target_id } : {}),
-      ...(donationConfig.target_type === "case" ? { case_id: donationConfig.target_id } : {}),
-      ...(donationConfig.target_type === "emergency" ? { emergency_id: donationConfig.target_id } : {}),
-    }
-    await collections.donations().insertOne(donationDoc)
-
-    if (donationConfig.target_type === "emergency") {
-      await collections
-        .emergencyFund()
-        .updateOne({ id: donationConfig.target_id }, { $inc: { raised_amount: donation_amount }, $set: { updated_at: now } })
-    }
-
-    await logAudit(null, req, {
-      action: "order_create",
-      entity_type: "order",
-      entity_id: order_id,
-      meta: {
+      order_id = await nextSequence("orders")
+      const orderDoc = {
+        id: order_id,
+        user_id,
+        partner_id: partner.id,
         product_id: product.id,
         quantity,
+        price,
         total_amount,
+        profit_amount,
         donation_amount,
-      },
-      actor_id: user_id,
-    })
-
-    await logAudit(null, req, {
-      action: "order_donation_created",
-      entity_type: "donation",
-      entity_id: donation_id,
-      meta: {
-        order_id,
+        donation_type: donationConfig.donation_type,
         target_type: donationConfig.target_type,
         target_id: donationConfig.target_id,
-        donation_amount,
-      },
-      actor_id: user_id,
-    })
+        status: "completed",
+        created_at: now,
+      }
+      await collections.orders().insertOne(orderDoc)
 
-    return res.status(201).json({
-      ok: true,
-      data: {
-        order: orderDoc,
-        donation: {
-          id: donation_id,
-          amount: donation_amount,
-          donation_type: donationConfig.donation_type,
+      donation_id = await nextSequence("donations")
+      const donationDoc = {
+        id: donation_id,
+        donor_id: user_id,
+        amount: donation_amount,
+        payment_method: "card",
+        payment_status: "paid",
+        order_id,
+        created_at: now,
+        updated_at: now,
+        ...(donationConfig.target_type === "campaign" ? { campaign_id: donationConfig.target_id } : {}),
+        ...(donationConfig.target_type === "case" ? { case_id: donationConfig.target_id } : {}),
+        ...(donationConfig.target_type === "emergency" ? { emergency_id: donationConfig.target_id } : {}),
+      }
+      await collections.donations().insertOne(donationDoc)
+
+      if (donationConfig.target_type === "emergency") {
+        await collections.emergencyFund().updateOne(
+          { id: donationConfig.target_id },
+          { $inc: { raised_amount: donation_amount }, $set: { updated_at: now } }
+        )
+      }
+
+      await logAudit(null, req, {
+        action: "order_create",
+        entity_type: "order",
+        entity_id: order_id,
+        meta: {
+          product_id: product.id,
+          quantity,
+          total_amount,
+          donation_amount,
+        },
+        actor_id: user_id,
+      })
+
+      await logAudit(null, req, {
+        action: "order_donation_created",
+        entity_type: "donation",
+        entity_id: donation_id,
+        meta: {
+          order_id,
           target_type: donationConfig.target_type,
           target_id: donationConfig.target_id,
-          mode: donationConfigRaw.mode,
+          donation_amount,
         },
-      },
-      meta: null,
-    })
+        actor_id: user_id,
+      })
+
+      return res.status(201).json({
+        ok: true,
+        data: {
+          order: orderDoc,
+          donation: {
+            id: donation_id,
+            amount: donation_amount,
+            donation_type: donationConfig.donation_type,
+            target_type: donationConfig.target_type,
+            target_id: donationConfig.target_id,
+            mode: donationConfigRaw.mode,
+          },
+        },
+        meta: null,
+      })
+    } catch (writeErr) {
+      if (donation_id !== null) {
+        await collections.donations().deleteOne({ id: donation_id })
+      }
+      if (order_id !== null) {
+        await collections.orders().deleteOne({ id: order_id })
+      }
+
+      const rollbackTime = new Date()
+      await collections
+        .storeProducts()
+        .updateOne({ id: product.id }, { $inc: { stock: quantity }, $set: { updated_at: rollbackTime } })
+
+      const rollbackProduct = await collections
+        .storeProducts()
+        .findOne({ id: product.id }, { projection: { _id: 0, stock: 1, status: 1 } })
+      if (rollbackProduct?.stock > 0 && rollbackProduct?.status === "out_of_stock") {
+        await collections
+          .storeProducts()
+          .updateOne({ id: product.id }, { $set: { status: "active", updated_at: new Date() } })
+      }
+
+      throw writeErr
+    }
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to create order", error: err.message })
   }
@@ -282,4 +310,3 @@ export async function listMyOrders(req, res) {
     return res.status(500).json({ ok: false, message: "failed to list orders", error: err.message })
   }
 }
-

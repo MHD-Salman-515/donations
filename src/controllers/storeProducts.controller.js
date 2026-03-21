@@ -214,6 +214,11 @@ export async function updateMyStoreProduct(req, res) {
 
     if (next.stock === 0) {
       updates.status = "out_of_stock"
+    } else if (
+      Object.prototype.hasOwnProperty.call(updates, "stock") &&
+      current.status === "out_of_stock"
+    ) {
+      updates.status = "active"
     }
 
     updates.updated_at = new Date()
@@ -282,31 +287,26 @@ export async function listPublicStoreProducts(req, res) {
     if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
 
     const { q, city, business_category, donation_mode, min_price, max_price, page, limit, skip } = valid.value
-    let partnerIdFilter = null
-
-    if (city || business_category) {
-      const partnerFilter = {
-        partner_type: "store",
-        status: "active",
-        ...(city && { $or: [{ city }, { "location.city": city }] }),
-        ...(business_category && { business_category }),
-      }
-
-      const partners = await collections
-        .partners()
-        .find(partnerFilter, { projection: { _id: 0, id: 1 } })
-        .toArray()
-      partnerIdFilter = partners.map((p) => p.id)
-      if (!partnerIdFilter.length) {
-        return res.json({ ok: true, data: [], meta: { page, limit, total: 0, totalPages: 1 } })
-      }
+    const partnerFilter = {
+      partner_type: "store",
+      status: "active",
+      ...(city && { $or: [{ city }, { "location.city": city }] }),
+      ...(business_category && { business_category }),
+    }
+    const partners = await collections
+      .partners()
+      .find(partnerFilter, { projection: { _id: 0, id: 1 } })
+      .toArray()
+    const partnerIdFilter = partners.map((p) => p.id)
+    if (!partnerIdFilter.length) {
+      return res.json({ ok: true, data: [], meta: { page, limit, total: 0, totalPages: 1 } })
     }
 
     const filter = {
       status: "active",
       ...(q && { title: { $regex: q, $options: "i" } }),
       ...(donation_mode && { donation_mode }),
-      ...(partnerIdFilter && { partner_id: { $in: partnerIdFilter } }),
+      partner_id: { $in: partnerIdFilter },
       ...((min_price !== null || max_price !== null) && {
         price: {
           ...(min_price !== null ? { $gte: min_price } : {}),
@@ -342,6 +342,10 @@ export async function getPublicStoreProduct(req, res) {
 
     const row = await collections.storeProducts().findOne({ id, status: "active" }, { projection: { _id: 0 } })
     if (!row) return res.status(404).json({ ok: false, message: "product not found" })
+    const partner = await collections
+      .partners()
+      .findOne({ id: row.partner_id, partner_type: "store", status: "active" }, { projection: { _id: 0, id: 1 } })
+    if (!partner) return res.status(404).json({ ok: false, message: "product not found" })
 
     const [item] = await enrichWithPartners([row])
     return res.json({ ok: true, data: item, meta: null })
@@ -349,4 +353,3 @@ export async function getPublicStoreProduct(req, res) {
     return res.status(500).json({ ok: false, message: "failed to get public store product", error: err.message })
   }
 }
-
