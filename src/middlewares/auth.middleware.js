@@ -16,6 +16,9 @@ export function requireAuth(req, res, next) {
       return res.status(401).json({ message: "invalid token type" })
     }
     req.user = payload
+    if (req.user && req.user.id) {
+      req.user.id = Number(req.user.id)
+    }
 
     const hasHeaderLang =
       Boolean(req.headers["x-lang"]) || Boolean(req.headers["accept-language"])
