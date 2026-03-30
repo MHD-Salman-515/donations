@@ -1,0 +1,164 @@
+{
+  "info": {
+    "name": "Stores Admin - Real Tests",
+    "_postman_id": "stores-admin-collection",
+    "description": "Real-world testing for admin store creation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000/api" },
+    { "key": "access_token", "value": "" },
+    { "key": "user1", "value": "USER_ID_1" },
+    { "key": "user2", "value": "USER_ID_2" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Admin Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"123456\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let res = pm.response.json();",
+              "pm.environment.set('access_token', res.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🟢 Create Store - User 1",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"{{user1}}\",\n  \"store_name\": \"Alpha Store\",\n  \"description\": \"Electronics shop\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "🔥 Create Second Store - Same User",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"{{user1}}\",\n  \"store_name\": \"Beta Store\",\n  \"description\": \"Second branch\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "🧠 Create Store - Different User",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"{{user2}}\",\n  \"store_name\": \"Gamma Store\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "⚠️ Create Store Without user_id",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_name\": \"Admin Created Store\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "❌ Unauthorized Access",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_name\": \"Hacker Store\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "💣 Stress Test (Multiple Stores Same User)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/stores",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "stores"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"{{user1}}\",\n  \"store_name\": \"Load Test Store\"\n}"
+        }
+      }
+    }
+  ]
+}

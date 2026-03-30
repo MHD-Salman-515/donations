@@ -40,6 +40,7 @@ import {
 import storeRoutes from "./routes/store.routes.js"
 import { publicStoreProductsRoutes, storeProductsRoutes } from "./routes/storeProducts.routes.js"
 import ordersRoutes from "./routes/orders.routes.js"
+import adminStoresRoutes from "./routes/admin.stores.routes.js"
 
 const app = express()
 
@@ -61,6 +62,24 @@ app.use(
 app.use(express.json({ limit: "1mb" }))
 app.use(cookieParser())
 app.use(detectLanguage)
+app.use((req, res, next) => {
+  const sendJson = res.json.bind(res)
+  res.json = (payload) => {
+    if (
+      NODE_ENV === "production" &&
+      payload &&
+      typeof payload === "object" &&
+      !Array.isArray(payload) &&
+      Object.prototype.hasOwnProperty.call(payload, "error")
+    ) {
+      const sanitized = { ...payload }
+      delete sanitized.error
+      return sendJson(sanitized)
+    }
+    return sendJson(payload)
+  }
+  next()
+})
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, env: NODE_ENV })
@@ -100,6 +119,7 @@ app.use("/api/store", storeRoutes)
 app.use("/api/store/products", storeProductsRoutes)
 app.use("/api/public/store-products", publicStoreProductsRoutes)
 app.use("/api/orders", ordersRoutes)
+app.use("/api/admin/stores", adminStoresRoutes)
 
 app.use(notFound)
 app.use(errorHandler)

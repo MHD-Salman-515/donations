@@ -1,4 +1,6 @@
 const ALLOWED_STATUSES = ["active", "inactive"]
+const ALLOWED_DONATION_MODES = ["percentage", "fixed"]
+const ALLOWED_TARGET_TYPES = ["campaign", "case", "emergency"]
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : ""
@@ -7,6 +9,18 @@ function normalizeText(value) {
 function normalizeOrNull(value) {
   const v = normalizeText(value)
   return v || null
+}
+
+function toPositiveIntOrNull(value) {
+  if (value === undefined || value === null || value === "") return null
+  const n = Number(value)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
+function toPositiveNumberOrNull(value) {
+  if (value === undefined || value === null || value === "") return null
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : null
 }
 
 function isValidUrl(value) {
@@ -189,4 +203,89 @@ export function validatePartnerLinkBody(body) {
   }
 
   return { ok: true, value: { partner_id: partnerId } }
+}
+
+export function validateCreateAdminStoreBody(body) {
+  const store_name = normalizeText(body?.store_name || body?.name)
+  const description = normalizeText(body?.description)
+  const status = body?.status ? normalizeText(body.status) : "active"
+  const user_id = toPositiveIntOrNull(body?.user_id)
+  const logo_url_raw = normalizeText(body?.logo_url)
+
+  if (!store_name || store_name.length < 3 || store_name.length > 80) {
+    return { ok: false, message: "store_name must be between 3 and 80 characters" }
+  }
+  if (description && description.length > 500) {
+    return { ok: false, message: "description must be at most 500 characters" }
+  }
+  if (!ALLOWED_STATUSES.includes(status)) {
+    return { ok: false, message: "invalid status" }
+  }
+  if (body?.user_id !== undefined && body?.user_id !== null && !user_id) {
+    return { ok: false, message: "invalid user_id" }
+  }
+
+  const logo_url = logo_url_raw || null
+  if (logo_url && !isValidUrl(logo_url)) {
+    return { ok: false, message: "invalid logo_url" }
+  }
+
+  const contact_email = normalizeOrNull(body?.contact?.email || body?.email)
+  const contact_phone = normalizeOrNull(body?.contact?.phone || body?.phone)
+  const contact_website = normalizeOrNull(body?.contact?.website)
+  if (contact_email && !isValidEmail(contact_email)) {
+    return { ok: false, message: "invalid contact email" }
+  }
+  if (contact_website && !isValidUrl(contact_website)) {
+    return { ok: false, message: "invalid contact website" }
+  }
+
+  const donation_mode = normalizeOrNull(body?.donation_mode)
+  const donation_value = toPositiveNumberOrNull(body?.donation_value)
+  const default_target_type = normalizeOrNull(body?.default_target_type || body?.target_type)
+  const default_target_id = toPositiveIntOrNull(body?.default_target_id || body?.target_id)
+
+  if (donation_mode && !ALLOWED_DONATION_MODES.includes(donation_mode)) {
+    return { ok: false, message: "invalid donation_mode" }
+  }
+  if (body?.donation_value !== undefined && donation_value === null) {
+    return { ok: false, message: "invalid donation_value" }
+  }
+  if (default_target_type && !ALLOWED_TARGET_TYPES.includes(default_target_type)) {
+    return { ok: false, message: "invalid default_target_type" }
+  }
+  if ((body?.default_target_id !== undefined || body?.target_id !== undefined) && !default_target_id) {
+    return { ok: false, message: "invalid default_target_id" }
+  }
+
+  return {
+    ok: true,
+    value: {
+      name: store_name,
+      owner_name: normalizeOrNull(body?.owner_name),
+      contact_person: normalizeOrNull(body?.contact_person) || normalizeOrNull(body?.owner_name),
+      phone: normalizeOrNull(body?.phone),
+      email: normalizeOrNull(body?.email),
+      city: normalizeOrNull(body?.city),
+      business_category: normalizeOrNull(body?.business_category),
+      description: description || null,
+      logo_url,
+      contact: {
+        email: contact_email,
+        phone: contact_phone,
+        website: contact_website,
+      },
+      location: {
+        city: normalizeOrNull(body?.location?.city || body?.city),
+        country: normalizeOrNull(body?.location?.country),
+      },
+      donation_mode: donation_mode || null,
+      donation_value,
+      default_target_type,
+      default_target_id,
+      user_id,
+      partner_type: "store",
+      status,
+    },
+  }
 }

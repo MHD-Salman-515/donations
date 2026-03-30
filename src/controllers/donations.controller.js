@@ -1,4 +1,4 @@
-import { collections, nextSequence } from "../config/db.js"
+import { collections, nextSequence, runInTransaction } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
 
 const ALLOWED_PAYMENT_METHODS = ["card", "bank", "cash", "paypal"]
@@ -114,73 +114,99 @@ export async function createDonation(req, res) {
       return res.status(400).json({ message: "invalid donor_id" })
     }
 
-    if (hasCampaign) {
-      const campaign = await collections
-        .campaigns()
-        .findOne({ id: campaign_id }, { projection: { _id: 0, id: 1, status: 1 } })
+    const tx = await runInTransaction(async (session) => {
+      if (hasCampaign) {
+        const campaign = await collections
+          .campaigns()
+          .findOne({ id: campaign_id }, { projection: { _id: 0, id: 1, status: 1 }, session })
 
-      if (!campaign) {
-        return res.status(404).json({ message: "campaign not found" })
-      }
+        if (!campaign) {
+          const err = new Error("campaign not found")
+          err.status = 404
+          throw err
+        }
 
-      if (campaign.status !== "active") {
-        return res.status(400).json({ message: "only active campaigns accept donations" })
-      }
-    } else {
-      if (hasCase) {
+        if (campaign.status !== "active") {
+          const err = new Error("only active campaigns accept donations")
+          err.status = 400
+          throw err
+        }
+      } else if (hasCase) {
         const caseRow = await collections
           .cases()
-          .findOne({ id: case_id }, { projection: { _id: 0, id: 1, status: 1 } })
+          .findOne({ id: case_id }, { projection: { _id: 0, id: 1, status: 1 }, session })
 
         if (!caseRow) {
-          return res.status(404).json({ message: "case not found" })
+          const err = new Error("case not found")
+          err.status = 404
+          throw err
         }
 
         if (!["approved", "active"].includes(caseRow.status)) {
-          return res.status(400).json({ message: "only approved or active cases accept donations" })
+          const err = new Error("only approved or active cases accept donations")
+          err.status = 400
+          throw err
         }
       } else {
         const emergencyFund = await collections
           .emergencyFund()
-          .findOne({ id: emergency_id }, { projection: { _id: 0, id: 1, enabled: 1 } })
+          .findOne({ id: emergency_id }, { projection: { _id: 0, id: 1, enabled: 1 }, session })
 
         if (!emergencyFund) {
-          return res.status(404).json({ message: "emergency fund not found" })
+          const err = new Error("emergency fund not found")
+          err.status = 404
+          throw err
         }
         if (!emergencyFund.enabled) {
-          return res.status(400).json({ message: "emergency fund is disabled" })
+          const err = new Error("emergency fund is disabled")
+          err.status = 400
+          throw err
         }
       }
-    }
 
-    const now = new Date()
-    const id = await nextSequence("donations")
+      const now = new Date()
+      const id = await nextSequence("donations", { session })
 
-    await collections.donations().insertOne({
-      id,
-      ...(hasCampaign ? { campaign_id } : {}),
-      ...(hasCase ? { case_id } : {}),
-      ...(hasEmergency ? { emergency_id } : {}),
-      donor_id,
-      amount,
-      payment_method,
-      payment_status,
-      created_at: now,
-      updated_at: now,
+      await collections.donations().insertOne(
+        {
+          id,
+          ...(hasCampaign ? { campaign_id } : {}),
+          ...(hasCase ? { case_id } : {}),
+          ...(hasEmergency ? { emergency_id } : {}),
+          donor_id,
+          amount,
+          payment_method,
+          payment_status,
+          created_at: now,
+          updated_at: now,
+        },
+        { session }
+      )
+
+      if (hasEmergency) {
+        const emergencyUpdate = await collections.emergencyFund().updateOne(
+          { id: emergency_id },
+          { $inc: { raised_amount: amount }, $set: { updated_at: now } },
+          { session }
+        )
+        if (!emergencyUpdate.matchedCount) {
+          const err = new Error("emergency fund not found")
+          err.status = 404
+          throw err
+        }
+      }
+
+      const created = await collections
+        .donations()
+        .findOne({ id }, { projection: { _id: 0 }, session })
+
+      return { id, created }
     })
-
-    if (hasEmergency) {
-      await collections
-        .emergencyFund()
-        .updateOne({ id: emergency_id }, { $inc: { raised_amount: amount }, $set: { updated_at: now } })
-    }
-
-    const created = await collections.donations().findOne({ id }, { projection: { _id: 0 } })
 
     await logAudit(null, req, {
       action: hasEmergency ? "emergency_donation_created" : hasCase ? "donation_created" : "donations_create",
       entity_type: "donation",
-      entity_id: id,
+      entity_id: tx.id,
       meta: {
         amount,
         donor_id,
@@ -192,8 +218,11 @@ export async function createDonation(req, res) {
       actor_id: donor_id,
     })
 
-    return res.status(201).json(await decorateDonation(created))
+    return res.status(201).json(await decorateDonation(tx.created))
   } catch (err) {
+    if (err?.status) {
+      return res.status(err.status).json({ message: err.message })
+    }
     return res.status(500).json({ message: "failed to create donation", error: err.message })
   }
 }

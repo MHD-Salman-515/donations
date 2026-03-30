@@ -1,22 +1,14 @@
 import "dotenv/config"
 import mongoose from "mongoose"
-import { PORT } from "./src/config/env.js"
+import { PORT, validateRuntimeEnv } from "./src/config/env.js"
 import app from "./src/app.js"
 import { connectToDatabase } from "./src/config/db.js"
 
 async function bootstrap() {
   try {
-    const mongooseUri =
-      process.env.MONGODB_URI ||
-      process.env.MONGO_URI ||
-      process.env.MONGO_URL ||
-      process.env.DATABASE_URL
+    const { mongoUri } = validateRuntimeEnv()
 
-    if (!mongooseUri) {
-      throw new Error("Missing MongoDB connection URI for Mongoose")
-    }
-
-    await mongoose.connect(mongooseUri)
+    await mongoose.connect(mongoUri)
     console.log("Mongoose connected")
 
     await connectToDatabase()

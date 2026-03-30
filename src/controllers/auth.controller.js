@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import { collections, nextSequence } from "../config/db.js"
+import { collections, nextSequence, runInTransaction } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
 import { createAccessToken, createRefreshToken, hashToken } from "../utils/security.js"
 
@@ -194,24 +194,52 @@ export async function refresh(req, res) {
     const refreshToken = req.cookies?.refresh_token
     if (!refreshToken) return res.status(401).json({ message: "missing refresh token" })
 
+    let payload
     try {
-      jwt.verify(refreshToken, process.env.JWT_SECRET)
+      payload = jwt.verify(refreshToken, process.env.JWT_SECRET)
     } catch {
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
+      return res.status(401).json({ message: "invalid refresh token" })
+    }
+    if (payload?.typ && payload.typ !== "refresh") {
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
       return res.status(401).json({ message: "invalid refresh token" })
     }
 
     const tokenHash = hashToken(refreshToken)
     const now = new Date()
+    const existingToken = await collections.refreshTokens().findOne(
+      { token_hash: tokenHash },
+      { projection: { _id: 0, id: 1, user_id: 1, revoked: 1, expires_at: 1 } }
+    )
 
-    const rt = await collections.refreshTokens().findOne({
-      token_hash: tokenHash,
-      revoked: false,
-      expires_at: { $gt: now },
-    })
+    if (!existingToken) {
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
+      return res.status(401).json({ message: "invalid refresh token" })
+    }
 
-    if (!rt) return res.status(401).json({ message: "invalid refresh token" })
+    if (existingToken.revoked) {
+      await collections.refreshTokens().updateMany(
+        { user_id: existingToken.user_id, revoked: false },
+        {
+          $set: {
+            revoked: true,
+            revoked_at: now,
+            revoked_reason: "refresh_token_reuse_detected",
+            updated_at: now,
+          },
+        }
+      )
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
+      return res.status(401).json({ message: "refresh token reuse detected" })
+    }
 
-    const user = await collections.users().findOne({ id: rt.user_id })
+    if (new Date(existingToken.expires_at) <= now) {
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
+      return res.status(401).json({ message: "invalid refresh token" })
+    }
+
+    const user = await collections.users().findOne({ id: existingToken.user_id })
     if (!user) return res.status(401).json({ message: "invalid refresh token" })
 
     if (user.status !== "active") {
@@ -224,16 +252,82 @@ export async function refresh(req, res) {
       email: user.email,
       preferredLanguage: user.preferredLanguage || "ar",
     })
+    const nextRefreshToken = createRefreshToken({
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      preferredLanguage: user.preferredLanguage || "ar",
+    })
+    const nextTokenHash = hashToken(nextRefreshToken)
+    const userAgent = req.headers["user-agent"] || null
+    const ip = getRequestIp(req)
+
+    await runInTransaction(async (session) => {
+      const current = await collections.refreshTokens().findOne(
+        { token_hash: tokenHash },
+        { projection: { _id: 0, id: 1, user_id: 1, revoked: 1, expires_at: 1 }, session }
+      )
+
+      if (!current || current.revoked || new Date(current.expires_at) <= now) {
+        const txErr = new Error("invalid refresh token")
+        txErr.status = 401
+        throw txErr
+      }
+
+      const revokeResult = await collections.refreshTokens().updateOne(
+        { token_hash: tokenHash, revoked: false },
+        {
+          $set: {
+            revoked: true,
+            revoked_at: now,
+            revoked_reason: "rotated",
+            replaced_by_token_hash: nextTokenHash,
+            updated_at: now,
+          },
+        },
+        { session }
+      )
+      if (!revokeResult.matchedCount) {
+        const txErr = new Error("invalid refresh token")
+        txErr.status = 401
+        throw txErr
+      }
+
+      await collections.refreshTokens().insertOne(
+        {
+          id: await nextSequence("refresh_tokens", { session }),
+          user_id: user.id,
+          token_hash: nextTokenHash,
+          revoked: false,
+          revoked_at: null,
+          revoked_reason: null,
+          replaced_by_token_hash: null,
+          user_agent: userAgent,
+          ip,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          created_at: now,
+          updated_at: now,
+        },
+        { session }
+      )
+    })
+
+    res.cookie("refresh_token", nextRefreshToken, getRefreshCookieOptions())
 
     await logAudit(null, req, {
       action: "auth_refresh",
       entity_type: "user",
       entity_id: user.id,
       actor_id: user.id,
+      meta: { rotated: true },
     })
 
     return res.json({ token })
   } catch (err) {
+    if (err?.status) {
+      res.clearCookie("refresh_token", getRefreshCookieOptions())
+      return res.status(err.status).json({ message: err.message })
+    }
     return res.status(500).json({ message: "refresh failed", error: err.message })
   }
 }

@@ -1,5 +1,5 @@
 import { MongoClient } from "mongodb"
-import { DB_NAME } from "./env.js"
+import { DB_NAME, getMongoUri } from "./env.js"
 
 const REQUIRED_COLLECTIONS = [
   "users",
@@ -98,15 +98,33 @@ async function ensureCounters() {
   ])
 }
 
-export async function nextSequence(counterName) {
+export async function nextSequence(counterName, options = {}) {
+  const { session } = options
   const result = await collections.counters().findOneAndUpdate(
     { _id: counterName },
     { $inc: { seq: 1 } },
-    { upsert: true, returnDocument: "after" }
+    { upsert: true, returnDocument: "after", ...(session && { session }) }
   )
 
   const doc = result?.value ?? result
   return Number(doc?.seq || 1)
+}
+
+export async function runInTransaction(work, options = {}) {
+  if (!client) {
+    throw new Error("Database client is not initialized")
+  }
+
+  const session = client.startSession()
+  try {
+    let result
+    await session.withTransaction(async () => {
+      result = await work(session)
+    }, options)
+    return result
+  } finally {
+    await session.endSession()
+  }
 }
 
 async function createIndexSafe(collectionName, spec, options = {}, duplicateHelp = "") {
@@ -132,6 +150,83 @@ async function createIndexSafe(collectionName, spec, options = {}, duplicateHelp
 
 async function ensureIndexes() {
   // TODO(phase5): Consider additional analytics indexes for mixed campaign/case/emergency reporting.
+  await createIndexSafe(
+    "users",
+    { id: 1 },
+    { unique: true, name: "users_id_unique" },
+    "db.users.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "campaigns",
+    { id: 1 },
+    { unique: true, name: "campaigns_id_unique" },
+    "db.campaigns.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "donations",
+    { id: 1 },
+    { unique: true, name: "donations_id_unique" },
+    "db.donations.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "audit_logs",
+    { id: 1 },
+    { unique: true, name: "audit_logs_id_unique" },
+    "db.audit_logs.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "refresh_tokens",
+    { id: 1 },
+    { unique: true, name: "refresh_tokens_id_unique" },
+    "db.refresh_tokens.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "refresh_tokens",
+    { token_hash: 1 },
+    { unique: true, name: "refresh_tokens_token_hash_unique" },
+    "db.refresh_tokens.aggregate([{ $group: { _id: '$token_hash', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "refresh_tokens",
+    { user_id: 1, revoked: 1, expires_at: 1 },
+    { name: "refresh_tokens_user_revoked_expires" }
+  )
+  await createIndexSafe(
+    "cases",
+    { id: 1 },
+    { unique: true, name: "cases_id_unique" },
+    "db.cases.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "case_documents",
+    { id: 1 },
+    { unique: true, name: "case_documents_id_unique" },
+    "db.case_documents.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "case_updates",
+    { id: 1 },
+    { unique: true, name: "case_updates_id_unique" },
+    "db.case_updates.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "campaign_support_messages",
+    { id: 1 },
+    { unique: true, name: "campaign_support_messages_id_unique" },
+    "db.campaign_support_messages.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "support_reports",
+    { id: 1 },
+    { unique: true, name: "support_reports_id_unique" },
+    "db.support_reports.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
+  await createIndexSafe(
+    "partners",
+    { id: 1 },
+    { unique: true, name: "partners_id_unique" },
+    "db.partners.aggregate([{ $group: { _id: '$id', c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }])"
+  )
   await createIndexSafe(
     "users",
     { email: 1 },
@@ -257,6 +352,11 @@ async function ensureIndexes() {
     { name: "partners_user_type_status_idx" }
   )
   await createIndexSafe(
+    "partners",
+    { user_id: 1 },
+    { name: "partners_user_id_idx" }
+  )
+  await createIndexSafe(
     "store_applications",
     { id: 1 },
     { unique: true, name: "store_applications_id_unique" },
@@ -366,6 +466,20 @@ async function ensureIndexes() {
   )
 }
 
+async function ensurePartnersUserIdNonUnique() {
+  const indexes = await collections.partners().indexes()
+  const uniqueUserIdIndexes = indexes.filter((idx) => {
+    if (!idx?.unique) return false
+    const keys = Object.keys(idx.key || {})
+    return keys.length === 1 && keys[0] === "user_id" && idx.key.user_id === 1
+  })
+
+  for (const idx of uniqueUserIdIndexes) {
+    await collections.partners().dropIndex(idx.name)
+    console.warn(`Index warning on partners: dropped legacy unique index '${idx.name}' on user_id`)
+  }
+}
+
 async function seedDefaultSettings() {
   const settingsCount = await collections.settings().countDocuments({})
   if (settingsCount > 0) return
@@ -432,9 +546,9 @@ async function seedEmergencyFundIfMissing() {
 export async function connectToDatabase() {
   if (database) return database
 
-  const uri = process.env.MONGODB_URI
+  const uri = getMongoUri()
   if (!uri) {
-    throw new Error("Missing MONGODB_URI. Set it in environment variables.")
+    throw new Error("Missing MongoDB connection URI. Set MONGODB_URI (or MONGO_URI/MONGO_URL/DATABASE_URL).")
   }
 
   client = new MongoClient(uri)
@@ -443,6 +557,7 @@ export async function connectToDatabase() {
 
   await Promise.all(REQUIRED_COLLECTIONS.map((name) => database.collection(name)))
   await ensureCounters()
+  await ensurePartnersUserIdNonUnique()
   await ensureIndexes()
   await seedDefaultSettings()
   await seedAdsIfEnabled()

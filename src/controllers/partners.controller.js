@@ -1,6 +1,7 @@
 import { collections, nextSequence } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
 import {
+  validateCreateAdminStoreBody,
   parsePagination,
   validateCreatePartnerBody,
   validatePartnerListFilters,
@@ -83,6 +84,41 @@ export async function createPartner(req, res) {
     return res.status(201).json({ ok: true, data: created, meta: null })
   } catch (err) {
     return res.status(500).json({ ok: false, message: "failed to create partner", error: err.message })
+  }
+}
+
+export async function createAdminStore(req, res) {
+  try {
+    const valid = validateCreateAdminStoreBody(req.body || {})
+    if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
+
+    const now = new Date()
+    const id = await nextSequence("partners")
+    await collections.partners().insertOne({
+      id,
+      ...valid.value,
+      created_at: now,
+      updated_at: now,
+    })
+
+    const created = await collections.partners().findOne({ id }, { projection: { _id: 0 } })
+
+    await logAudit(null, req, {
+      action: "admin_store_create",
+      entity_type: "partner",
+      entity_id: id,
+      meta: {
+        partner_type: "store",
+        user_id: created.user_id || null,
+        status: created.status,
+        name: created.name,
+      },
+      actor_id: Number(req.user?.id) || null,
+    })
+
+    return res.status(201).json({ ok: true, data: created, meta: null })
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: "failed to create store", error: err.message })
   }
 }
 
