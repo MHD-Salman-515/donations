@@ -23,6 +23,20 @@ function getRequestIp(req) {
   return req.socket?.remoteAddress || null
 }
 
+async function insertRefreshTokenSafe(doc, options = {}) {
+  try {
+    await collections.refreshTokens().insertOne(doc, options)
+  } catch (err) {
+    if (err?.code === 11000) {
+      console.error("Duplicate refresh token hash insert attempt blocked", {
+        user_id: doc?.user_id ?? null,
+        token_hash: doc?.token_hash ?? null,
+      })
+    }
+    throw err
+  }
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -162,7 +176,7 @@ export async function login(req, res) {
     const userAgent = req.headers["user-agent"] || null
     const ip = getRequestIp(req)
 
-    await collections.refreshTokens().insertOne({
+    await insertRefreshTokenSafe({
       id: await nextSequence("refresh_tokens"),
       user_id: user.id,
       token_hash: refreshTokenHash,
@@ -293,7 +307,7 @@ export async function refresh(req, res) {
         throw txErr
       }
 
-      await collections.refreshTokens().insertOne(
+      await insertRefreshTokenSafe(
         {
           id: await nextSequence("refresh_tokens", { session }),
           user_id: user.id,
