@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "Account API Tests",
+    "_postman_id": "account-api-001",
+    "description": "Test self-service account endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "access_token",
+      "value": "PUT_YOUR_TOKEN_HERE"
+    }
+  ],
+  "item": [
+    {
+      "name": "GET My Profile",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/account/me",
+          "host": ["{{base_url}}"],
+          "path": ["account", "me"]
+        }
+      }
+    },
+    {
+      "name": "UPDATE My Profile",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test User Updated\",\n  \"email\": \"test_updated@example.com\",\n  \"preferredLanguage\": \"en\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/account/me",
+          "host": ["{{base_url}}"],
+          "path": ["account", "me"]
+        }
+      }
+    },
+    {
+      "name": "UPDATE Profile - Forbidden Field",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"admin\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/account/me",
+          "host": ["{{base_url}}"],
+          "path": ["account", "me"]
+        }
+      }
+    },
+    {
+      "name": "UPDATE Profile - Invalid Email",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bad-email\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/account/me",
+          "host": ["{{base_url}}"],
+          "path": ["account", "me"]
+        }
+      }
+    },
+    {
+      "name": "CHANGE Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"123456\",\n  \"newPassword\": \"newStrong123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/account/change-password",
+          "host": ["{{base_url}}"],
+          "path": ["account", "change-password"]
+        }
+      }
+    },
+    {
+      "name": "CHANGE Password - Wrong Current",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"wrongpass\",\n  \"newPassword\": \"newStrong123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/account/change-password",
+          "host": ["{{base_url}}"],
+          "path": ["account", "change-password"]
+        }
+      }
+    }
+  ]
+}
