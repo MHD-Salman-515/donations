@@ -12,6 +12,7 @@ import {
 } from "../controllers/cases.controller.js"
 import {
   addCaseUpdate,
+  getAdminCase,
   listAdminCases,
   patchCasePriority,
   patchCaseStatus,
@@ -31,6 +32,7 @@ beneficiaryCasesRoutes.post("/:id/documents", addCaseDocument)
 const adminCasesRoutes = Router()
 adminCasesRoutes.use(requireAuth, requireRole("admin"))
 adminCasesRoutes.get("/", listAdminCases)
+adminCasesRoutes.get("/:id", getAdminCase)
 adminCasesRoutes.patch("/:id/status", patchCaseStatus)
 adminCasesRoutes.patch("/:id/priority", patchCasePriority)
 adminCasesRoutes.patch("/:id/partner", setCasePartner)
