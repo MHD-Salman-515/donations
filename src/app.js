@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser"
 
 import authRoutes from "./routes/auth.routes.js"
 import userRoutes from "./routes/users.routes.js"
-import campaignsRoutes from "./routes/campaigns.routes.js"
+import campaignsRoutes, { publicCampaignsRoutes } from "./routes/campaigns.routes.js"
 import adminCampaignsRoutes from "./routes/admin.campaigns.routes.js"
 import donationsRoutes from "./routes/donations.routes.js"
 import reportsRoutes from "./routes/reports.routes.js"
@@ -97,6 +97,7 @@ app.use("/api/campaigns", campaignsRoutes)
 app.use("/api/admin/campaigns", adminCampaignsRoutes)
 app.use("/api/i18n/campaigns", campaignsI18nRoutes)
 app.use("/api/support", supportRoutes)
+app.use("/api/public/campaigns", publicCampaignsRoutes)
 app.use("/api/public/partners", publicPartnersRoutes)
 app.use("/api/donations", donationsRoutes)
 app.use("/api/reports", reportsRoutes)

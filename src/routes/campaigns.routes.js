@@ -28,4 +28,7 @@ router.put("/:id", requireRole("admin"), updateCampaign)
 router.patch("/:id/status", requireRole("admin"), setCampaignStatus)
 router.delete("/:id", requireRole("admin"), deleteCampaign)
 
+export const publicCampaignsRoutes = Router()
+publicCampaignsRoutes.get("/", listCampaigns)
+
 export default router
