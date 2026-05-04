@@ -31,6 +31,7 @@ import {
 import { CORS_ORIGIN_LIST, NODE_ENV } from "./config/env.js"
 import { errorHandler, notFound } from "./middlewares/error.middleware.js"
 import { detectLanguage } from "./middlewares/lang.middleware.js"
+import { checkDonationsEnabled, checkMaintenanceMode } from "./middlewares/settings.middleware.js"
 import mainSectionsRoutes from "./routes/mainSections.routes.js"
 import adminMainSectionsRoutes from "./routes/admin.mainSections.routes.js"
 import {
@@ -63,6 +64,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }))
 app.use(cookieParser())
 app.use(detectLanguage)
+app.use(checkMaintenanceMode)
 app.use((req, res, next) => {
   const sendJson = res.json.bind(res)
   res.json = (payload) => {
@@ -99,7 +101,7 @@ app.use("/api/i18n/campaigns", campaignsI18nRoutes)
 app.use("/api/support", supportRoutes)
 app.use("/api/public/campaigns", publicCampaignsRoutes)
 app.use("/api/public/partners", publicPartnersRoutes)
-app.use("/api/donations", donationsRoutes)
+app.use("/api/donations", checkDonationsEnabled, donationsRoutes)
 app.use("/api/reports", reportsRoutes)
 app.use("/api/ads", adsRoutes)
 app.use("/api/settings", settingsRoutes)
