@@ -5,7 +5,7 @@ import morgan from "morgan"
 import cookieParser from "cookie-parser"
 
 import authRoutes from "./routes/auth.routes.js"
-import userRoutes from "./routes/users.routes.js"
+import userRoutes, { adminIdentityRoutes } from "./routes/users.routes.js"
 import campaignsRoutes, { publicCampaignsRoutes } from "./routes/campaigns.routes.js"
 import adminCampaignsRoutes from "./routes/admin.campaigns.routes.js"
 import donationsRoutes from "./routes/donations.routes.js"
@@ -111,6 +111,7 @@ app.use("/api/admin/cases", adminCasesRoutes)
 app.use("/api/admin/support", adminSupportRoutes)
 app.use("/api/admin/partners", adminPartnersRoutes)
 app.use("/api/admin", adminCaseDocumentsRoutes)
+app.use("/api/admin/identity-requests", adminIdentityRoutes)
 app.use("/api/public/cases", publicCasesRoutes)
 app.use("/api/public/emergency", publicEmergencyRoutes)
 app.use("/api/emergency", donorEmergencyRoutes)

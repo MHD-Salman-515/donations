@@ -5,6 +5,7 @@ import {
   validateAccountUpdateBody,
   validateChangePasswordBody,
 } from "../validators/account.validation.js"
+import { uploadBuffer } from "../config/cloudinary.js"
 
 function toId(value) {
   const id = Number(value)
@@ -104,5 +105,68 @@ export async function changeMyPassword(req, res) {
     return res.json({ message: "password updated" })
   } catch (err) {
     return res.status(500).json({ message: "failed to change password", error: err.message })
+  }
+}
+
+export async function submitIdentityVerification(req, res) {
+  try {
+    const userId = toId(req.user?.id)
+    if (!userId) return res.status(401).json({ message: "unauthorized" })
+
+    const national_id = typeof req.body?.national_id === "string" ? req.body.national_id.trim() : ""
+    if (!national_id || national_id.length < 5) {
+      return res.status(400).json({ message: "national_id is required (min 5 chars)" })
+    }
+
+    if (!req.file) return res.status(400).json({ message: "id card image is required" })
+
+    const uploaded = await uploadBuffer(req.file.buffer, {
+      folder: "identity_docs",
+      resource_type: "auto",
+    })
+
+    await collections.users().updateOne(
+      { id: userId },
+      {
+        $set: {
+          national_id,
+          id_card_image_url: uploaded.secure_url,
+          identity_verified: false,
+          verification_status: "pending",
+          updated_at: new Date(),
+        },
+      }
+    )
+
+    const user = await collections.users().findOne(
+      { id: userId },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          name: 1,
+          email: 1,
+          role: 1,
+          status: 1,
+          preferredLanguage: 1,
+          national_id: 1,
+          id_card_image_url: 1,
+          identity_verified: 1,
+          verification_status: 1,
+          created_at: 1,
+        },
+      }
+    )
+
+    await logAudit(null, req, {
+      action: "identity_verification_submitted",
+      entity_type: "user",
+      entity_id: userId,
+      meta: { national_id },
+    })
+
+    return res.json({ data: user, meta: null })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to submit identity verification", error: err.message })
   }
 }

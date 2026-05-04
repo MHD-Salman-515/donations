@@ -222,3 +222,69 @@ export async function deleteUser(req, res) {
     return res.status(500).json({ message: "failed to delete user", error: err.message })
   }
 }
+
+export async function listIdentityRequests(req, res) {
+  try {
+    const rows = await collections
+      .users()
+      .find(
+        { verification_status: "pending" },
+        {
+          projection: {
+            _id: 0,
+            id: 1,
+            name: 1,
+            email: 1,
+            national_id: 1,
+            id_card_image_url: 1,
+            verification_status: 1,
+          },
+        }
+      )
+      .sort({ id: -1 })
+      .toArray()
+
+    return res.json({ data: rows, meta: { total: rows.length } })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to list identity requests", error: err.message })
+  }
+}
+
+export async function reviewIdentityRequest(req, res) {
+  try {
+    const userId = toId(req.params.userId)
+    if (!userId) return res.status(400).json({ message: "invalid userId" })
+
+    const action = typeof req.body?.action === "string" ? req.body.action.trim() : ""
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({ message: "action must be 'approve' or 'reject'" })
+    }
+
+    const user = await collections
+      .users()
+      .findOne({ id: userId }, { projection: { _id: 0, id: 1, verification_status: 1 } })
+    if (!user) return res.status(404).json({ message: "user not found" })
+    if (user.verification_status !== "pending") {
+      return res.status(400).json({ message: "no pending verification request for this user" })
+    }
+
+    const updates =
+      action === "approve"
+        ? { identity_verified: true, verification_status: "approved", updated_at: new Date() }
+        : { identity_verified: false, verification_status: "rejected", updated_at: new Date() }
+
+    await collections.users().updateOne({ id: userId }, { $set: updates })
+
+    await logAudit(null, req, {
+      action: action === "approve" ? "identity_approved" : "identity_rejected",
+      entity_type: "user",
+      entity_id: userId,
+      actor_id: req.user?.id,
+      meta: { action },
+    })
+
+    return res.json({ ok: true, verification_status: updates.verification_status })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to review identity request", error: err.message })
+  }
+}

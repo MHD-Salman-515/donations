@@ -7,6 +7,8 @@ import {
   updateUser,
   setUserStatus,
   deleteUser,
+  listIdentityRequests,
+  reviewIdentityRequest,
 } from "../controllers/users.controller.js"
 
 const router = Router()
@@ -19,5 +21,10 @@ router.post("/", createUser)
 router.put("/:id", updateUser)
 router.patch("/:id/status", setUserStatus)
 router.delete("/:id", deleteUser)
+
+export const adminIdentityRoutes = Router()
+adminIdentityRoutes.use(requireAuth, requireRole("admin"))
+adminIdentityRoutes.get("/", listIdentityRequests)
+adminIdentityRoutes.patch("/:userId/review", reviewIdentityRequest)
 
 export default router
