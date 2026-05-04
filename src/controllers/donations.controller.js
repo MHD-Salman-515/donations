@@ -194,6 +194,18 @@ export async function createDonation(req, res) {
           err.status = 404
           throw err
         }
+      } else if (hasCampaign) {
+        await collections.campaigns().updateOne(
+          { id: campaign_id },
+          { $inc: { raised_amount: amount }, $set: { updated_at: now } },
+          { session }
+        )
+      } else if (hasCase) {
+        await collections.cases().updateOne(
+          { id: case_id },
+          { $inc: { raised_amount: amount }, $set: { updated_at: now } },
+          { session }
+        )
       }
 
       const created = await collections
