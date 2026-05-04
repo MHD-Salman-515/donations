@@ -34,6 +34,40 @@ function buildDateFilter(field, from, to) {
   return Object.keys(filter).length ? { [field]: filter } : {}
 }
 
+export async function getAdminCase(req, res) {
+  try {
+    const id = toId(req.params.id)
+    if (!id) return res.status(400).json({ message: "invalid case id" })
+
+    const caseRow = await collections.cases().findOne({ id }, { projection: { _id: 0 } })
+    if (!caseRow) return res.status(404).json({ message: "case not found" })
+
+    const [documents, updates] = await Promise.all([
+      collections.caseDocuments().find({ case_id: id }, { projection: { _id: 0 } }).sort({ created_at: 1 }).toArray(),
+      collections.caseUpdates().find({ case_id: id }, { projection: { _id: 0 } }).sort({ created_at: 1 }).toArray(),
+    ])
+
+    let beneficiary = null
+    if (caseRow.beneficiary_id != null) {
+      beneficiary = await collections
+        .users()
+        .findOne({ id: Number(caseRow.beneficiary_id) }, { projection: { _id: 0, password_hash: 0 } })
+    }
+
+    await logAudit(null, req, {
+      action: "admin_case_viewed",
+      entity_type: "case",
+      entity_id: id,
+      meta: {},
+      actor_id: Number(req.user?.id) || null,
+    })
+
+    return res.json({ data: { ...caseRow, documents, updates, beneficiary }, meta: null })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to get case", error: err.message })
+  }
+}
+
 export async function listAdminCases(req, res) {
   try {
     const status = normalizeText(req.query?.status)
