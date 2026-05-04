@@ -1,4 +1,5 @@
 import { Router } from "express"
+import multer from "multer"
 import { requireAuth, requireRole } from "../middlewares/auth.middleware.js"
 import {
   addCaseDocument,
@@ -22,13 +23,15 @@ import {
 } from "../controllers/admin.cases.controller.js"
 import { listCaseDonationsAdmin } from "../controllers/donations.controller.js"
 
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
+
 const beneficiaryCasesRoutes = Router()
 beneficiaryCasesRoutes.use(requireAuth, requireRole("beneficiary"))
 beneficiaryCasesRoutes.get("/my", listMyCases)
 beneficiaryCasesRoutes.post("/", createCase)
 beneficiaryCasesRoutes.put("/:id", updateCase)
 beneficiaryCasesRoutes.post("/:id/submit", submitCase)
-beneficiaryCasesRoutes.post("/:id/documents", addCaseDocument)
+beneficiaryCasesRoutes.post("/:id/documents", upload.single("file"), addCaseDocument)
 
 const adminCasesRoutes = Router()
 adminCasesRoutes.use(requireAuth, requireRole("admin"))

@@ -5,11 +5,11 @@ import {
   ALLOWED_CASE_STATUSES,
   parsePagination,
   validateCreateCaseBody,
-  validateCreateCaseDocumentBody,
   validatePublicMapQuery,
   validateUpdateCaseBody,
 } from "../validators/cases.validation.js"
 import { isValidActiveCaseType, normalizeSectionKey } from "../utils/mainSections.js"
+import { uploadBuffer } from "../config/cloudinary.js"
 
 function toId(value) {
   const id = Number(value)
@@ -202,8 +202,12 @@ export async function addCaseDocument(req, res) {
     if (!row) return res.status(404).json({ message: "case not found" })
     if (row.beneficiary_id !== req.user?.id) return res.status(403).json({ message: "forbidden" })
 
-    const valid = validateCreateCaseDocumentBody(req.body || {})
-    if (!valid.ok) return res.status(400).json({ message: valid.message })
+    if (!req.file) return res.status(400).json({ message: "file is required" })
+
+    const uploaded = await uploadBuffer(req.file.buffer, {
+      folder: "case_documents",
+      resource_type: "auto",
+    })
 
     const id = await nextSequence("case_documents")
     const now = new Date()
@@ -211,18 +215,19 @@ export async function addCaseDocument(req, res) {
     await collections.caseDocuments().insertOne({
       id,
       case_id: caseId,
-      type: valid.value.type,
-      file_url: valid.value.file_url,
-      mime_type: valid.value.mime_type,
-      size_bytes: valid.value.size_bytes,
+      file_url: uploaded.secure_url,
+      mime_type: req.file.mimetype,
+      size_bytes: req.file.size,
       verified: false,
       verified_by: null,
       verified_at: null,
       created_at: now,
     })
 
-    const created = await collections.caseDocuments().findOne({ id }, { projection: { _id: 0 } })
-    return res.status(201).json({ data: created, meta: null })
+    return res.status(201).json({
+      data: { file_url: uploaded.secure_url, mime_type: req.file.mimetype, size_bytes: req.file.size },
+      meta: null,
+    })
   } catch (err) {
     return res.status(500).json({ message: "failed to add case document", error: err.message })
   }
