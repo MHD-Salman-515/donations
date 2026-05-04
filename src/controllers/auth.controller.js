@@ -1,10 +1,16 @@
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 import jwt from "jsonwebtoken"
 import { collections, nextSequence, runInTransaction } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
 import { createAccessToken, createRefreshToken, hashToken } from "../utils/security.js"
+import { sendOtpEmail } from "../config/email.js"
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000))
+}
 
 function getRefreshCookieOptions() {
   return {
@@ -158,6 +164,23 @@ export async function login(req, res) {
       { id: user.id },
       { $set: { failed_login_attempts: 0, locked_until: null, updated_at: new Date() } }
     )
+
+    if (user.two_fa_enabled) {
+      const otp = generateOtp()
+      const otp_hash = await bcrypt.hash(otp, 10)
+      const otp_expires_at = new Date(Date.now() + 10 * 60 * 1000)
+      await collections.users().updateOne(
+        { id: user.id },
+        { $set: { otp_code: otp_hash, otp_expires_at, updated_at: new Date() } }
+      )
+      await sendOtpEmail(user.email, otp)
+      const tempToken = jwt.sign(
+        { user_id: user.id, typ: "2fa_pending" },
+        process.env.JWT_SECRET,
+        { expiresIn: "10m" }
+      )
+      return res.json({ requires_2fa: true, temp_token: tempToken })
+    }
 
     const preferredLanguage = user.preferredLanguage || "ar"
     const token = createAccessToken({
@@ -373,5 +396,159 @@ export async function logout(req, res) {
     return res.json({ ok: true })
   } catch (err) {
     return res.status(500).json({ message: "logout failed", error: err.message })
+  }
+}
+
+export async function setup2FA(req, res) {
+  try {
+    const user = await collections.users().findOne({ id: req.user.id })
+    if (!user) return res.status(404).json({ message: "user not found" })
+
+    const otp = generateOtp()
+    const otp_hash = await bcrypt.hash(otp, 10)
+    const otp_expires_at = new Date(Date.now() + 10 * 60 * 1000)
+
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { otp_code: otp_hash, otp_expires_at, updated_at: new Date() } }
+    )
+
+    await sendOtpEmail(user.email, otp)
+    return res.json({ ok: true, message: "OTP sent to your email" })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to setup 2FA", error: err.message })
+  }
+}
+
+export async function verify2FA(req, res) {
+  try {
+    const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : ""
+    if (!otp) return res.status(400).json({ message: "otp is required" })
+
+    const user = await collections.users().findOne({ id: req.user.id })
+    if (!user) return res.status(404).json({ message: "user not found" })
+    if (!user.otp_code || !user.otp_expires_at) {
+      return res.status(400).json({ message: "no pending OTP — call /2fa/setup first" })
+    }
+    if (new Date() > new Date(user.otp_expires_at)) {
+      return res.status(400).json({ message: "OTP expired" })
+    }
+
+    const valid = await bcrypt.compare(otp, user.otp_code)
+    if (!valid) return res.status(400).json({ message: "invalid OTP" })
+
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { two_fa_enabled: true, otp_code: null, otp_expires_at: null, updated_at: new Date() } }
+    )
+
+    return res.json({ ok: true, message: "2FA enabled" })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to verify 2FA", error: err.message })
+  }
+}
+
+export async function disable2FA(req, res) {
+  try {
+    const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : ""
+    if (!otp) return res.status(400).json({ message: "otp is required" })
+
+    const user = await collections.users().findOne({ id: req.user.id })
+    if (!user) return res.status(404).json({ message: "user not found" })
+    if (!user.two_fa_enabled) {
+      return res.status(400).json({ message: "2FA is not enabled" })
+    }
+    if (!user.otp_code || !user.otp_expires_at) {
+      return res.status(400).json({ message: "no pending OTP — call /2fa/setup first" })
+    }
+    if (new Date() > new Date(user.otp_expires_at)) {
+      return res.status(400).json({ message: "OTP expired" })
+    }
+
+    const valid = await bcrypt.compare(otp, user.otp_code)
+    if (!valid) return res.status(400).json({ message: "invalid OTP" })
+
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { two_fa_enabled: false, otp_code: null, otp_expires_at: null, updated_at: new Date() } }
+    )
+
+    return res.json({ ok: true, message: "2FA disabled" })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to disable 2FA", error: err.message })
+  }
+}
+
+export async function login2FA(req, res) {
+  try {
+    const tempToken = typeof req.body?.temp_token === "string" ? req.body.temp_token.trim() : ""
+    const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : ""
+
+    if (!tempToken || !otp) {
+      return res.status(400).json({ message: "temp_token and otp are required" })
+    }
+
+    let payload
+    try {
+      payload = jwt.verify(tempToken, process.env.JWT_SECRET)
+    } catch {
+      return res.status(401).json({ message: "invalid or expired temp token" })
+    }
+
+    if (payload?.typ !== "2fa_pending") {
+      return res.status(401).json({ message: "invalid token type" })
+    }
+
+    const user = await collections.users().findOne({ id: Number(payload.user_id) })
+    if (!user) return res.status(401).json({ message: "invalid credentials" })
+    if (user.status !== "active") {
+      return res.status(403).json({ message: "account is inactive" })
+    }
+    if (!user.otp_code || !user.otp_expires_at) {
+      return res.status(400).json({ message: "no pending OTP" })
+    }
+    if (new Date() > new Date(user.otp_expires_at)) {
+      return res.status(400).json({ message: "OTP expired" })
+    }
+
+    const valid = await bcrypt.compare(otp, user.otp_code)
+    if (!valid) return res.status(401).json({ message: "invalid OTP" })
+
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { otp_code: null, otp_expires_at: null, updated_at: new Date() } }
+    )
+
+    const preferredLanguage = user.preferredLanguage || "ar"
+    const token = createAccessToken({ id: user.id, role: user.role, email: user.email, preferredLanguage })
+    const refreshToken = createRefreshToken({ id: user.id, role: user.role, email: user.email, preferredLanguage })
+    const refreshTokenHash = hashToken(refreshToken)
+    const userAgent = req.headers["user-agent"] || null
+    const ip = getRequestIp(req)
+
+    await insertRefreshTokenSafe({
+      id: await nextSequence("refresh_tokens"),
+      user_id: user.id,
+      token_hash: refreshTokenHash,
+      revoked: false,
+      user_agent: userAgent,
+      ip,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      created_at: new Date(),
+    })
+
+    res.cookie("refresh_token", refreshToken, getRefreshCookieOptions())
+
+    await logAudit(null, req, {
+      action: "auth_login_2fa",
+      entity_type: "user",
+      entity_id: user.id,
+      actor_id: user.id,
+      meta: { ip, user_agent: userAgent },
+    })
+
+    return res.json({ token, user: publicUser(user) })
+  } catch (err) {
+    return res.status(500).json({ message: "2FA login failed", error: err.message })
   }
 }
