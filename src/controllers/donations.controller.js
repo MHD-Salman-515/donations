@@ -55,8 +55,8 @@ async function decorateDonation(d) {
     emergency_title: emergencyFund?.title || null,
     emergency_enabled: emergencyFund?.enabled ?? null,
     emergency_currency: emergencyFund?.currency || null,
-    donor_name: donor?.name || null,
-    donor_email: donor?.email || null,
+    donor_name: d.is_anonymous ? null : donor?.name || null,
+    donor_email: d.is_anonymous ? null : donor?.email || null,
   }
 }
 
@@ -68,6 +68,7 @@ export async function createDonation(req, res) {
     const amount = parseAmount(req.body?.amount)
     const payment_method = normalizeText(req.body?.payment_method)
     const payment_status = normalizeText(req.body?.payment_status)
+    const is_anonymous = req.body?.is_anonymous === true
 
     if (req.body?.campaign_id !== undefined && !campaign_id) {
       return res.status(400).json({ message: "invalid campaign_id" })
@@ -177,6 +178,7 @@ export async function createDonation(req, res) {
           amount,
           payment_method,
           payment_status,
+          is_anonymous,
           created_at: now,
           updated_at: now,
         },
