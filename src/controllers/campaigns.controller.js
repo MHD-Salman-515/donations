@@ -37,6 +37,7 @@ async function withCreator(campaign) {
 
 export async function listCampaigns(req, res) {
   try {
+    const isAdmin = req.user?.role === "admin"
     const status = normalizeText(req.query.status)
     const category = normalizeText(req.query.category)
     const q = normalizeText(req.query.q)
@@ -50,7 +51,11 @@ export async function listCampaigns(req, res) {
     }
 
     const filter = {}
-    if (status) filter.status = status
+    if (!isAdmin) {
+      filter.status = "active"
+    } else if (status) {
+      filter.status = status
+    }
     if (category) filter.category = category
     if (q) filter.title = { $regex: q, $options: "i" }
 
