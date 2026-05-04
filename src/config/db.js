@@ -20,6 +20,7 @@ const REQUIRED_COLLECTIONS = [
   "store_applications",
   "store_products",
   "orders",
+  "notifications",
 ]
 
 let client
@@ -55,6 +56,7 @@ export const collections = {
   storeApplications: () => getDb().collection("store_applications"),
   storeProducts: () => getDb().collection("store_products"),
   orders: () => getDb().collection("orders"),
+  notifications: () => getDb().collection("notifications"),
   counters: () => getDb().collection("counters"),
 }
 
@@ -95,6 +97,7 @@ async function ensureCounters() {
     seedCounterIfMissing("store_applications", "store_applications"),
     seedCounterIfMissing("store_products", "store_products"),
     seedCounterIfMissing("orders", "orders"),
+    seedCounterIfMissing("notifications", "notifications"),
   ])
 }
 

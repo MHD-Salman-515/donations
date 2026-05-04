@@ -1,5 +1,6 @@
 import { collections, nextSequence, runInTransaction } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
+import { notify } from "../config/notifications.js"
 import {
   parsePagination,
   validateCreateOrderBody,
@@ -233,6 +234,24 @@ export async function createOrder(req, res) {
       },
       actor_id: user_id,
     })
+
+    ;(async () => {
+      try {
+        const partnerDoc = await collections
+          .partners()
+          .findOne({ id: tx.orderDoc.partner_id }, { projection: { _id: 0, user_id: 1 } })
+        if (partnerDoc?.user_id) {
+          await notify(
+            partnerDoc.user_id,
+            "طلب جديد",
+            `طلب جديد على منتجك ${product.title}`,
+            "new_order",
+            tx.order_id
+          )
+        }
+        await notify(user_id, "تأكيد الطلب", "تم تأكيد طلبك", "order_confirmed", tx.order_id)
+      } catch (_) {}
+    })()
 
     return res.status(201).json({
       ok: true,

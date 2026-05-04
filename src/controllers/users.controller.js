@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs"
 import { collections, nextSequence } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
+import { notify } from "../config/notifications.js"
 
 const ALLOWED_ROLES = ["admin", "donor", "beneficiary"]
 const ALLOWED_STATUSES = ["active", "inactive"]
@@ -282,6 +283,12 @@ export async function reviewIdentityRequest(req, res) {
       actor_id: req.user?.id,
       meta: { action },
     })
+
+    const notifMsg =
+      action === "approve"
+        ? "تمت الموافقة على طلب التحقق من هويتك"
+        : "تم رفض طلب التحقق من هويتك"
+    notify(userId, "تحديث التحقق من الهوية", notifMsg, "identity_reviewed", userId).catch(() => {})
 
     return res.json({ ok: true, verification_status: updates.verification_status })
   } catch (err) {

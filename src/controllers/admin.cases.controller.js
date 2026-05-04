@@ -1,5 +1,6 @@
 import { collections, nextSequence } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
+import { notify } from "../config/notifications.js"
 import {
   ALLOWED_CASE_PRIORITIES,
   ALLOWED_CASE_STATUSES,
@@ -154,6 +155,16 @@ export async function patchCaseStatus(req, res) {
       actor_id: Number(req.user?.id) || null,
     })
 
+    if (updated?.beneficiary_id) {
+      notify(
+        Number(updated.beneficiary_id),
+        "تحديث حالتك",
+        `تم تغيير حالة طلبك إلى: ${valid.value.status}`,
+        "case_status",
+        id
+      ).catch(() => {})
+    }
+
     return res.json({ data: updated, meta: null })
   } catch (err) {
     return res.status(500).json({ message: "failed to change case status", error: err.message })
@@ -219,6 +230,19 @@ export async function verifyCaseDocument(req, res) {
       meta: { case_id: doc.case_id, verified: valid.value.verified },
       actor_id: req.user?.id || null,
     })
+
+    if (valid.value.verified) {
+      ;(async () => {
+        try {
+          const caseRow = await collections
+            .cases()
+            .findOne({ id: doc.case_id }, { projection: { _id: 0, beneficiary_id: 1 } })
+          if (caseRow?.beneficiary_id) {
+            await notify(Number(caseRow.beneficiary_id), "تحقق من الوثيقة", "تم التحقق من وثيقتك", "document_verified", docId)
+          }
+        } catch (_) {}
+      })()
+    }
 
     return res.json({ data: updated, meta: null })
   } catch (err) {

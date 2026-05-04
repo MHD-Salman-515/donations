@@ -1,5 +1,6 @@
 import { collections, nextSequence, runInTransaction } from "../config/db.js"
 import { logAudit } from "../utils/audit.js"
+import { notify } from "../config/notifications.js"
 
 const ALLOWED_PAYMENT_METHODS = ["card", "bank", "cash", "paypal"]
 const ALLOWED_PAYMENT_STATUSES = ["paid", "pending", "failed", "refunded"]
@@ -231,6 +232,30 @@ export async function createDonation(req, res) {
       },
       actor_id: donor_id,
     })
+
+    notify(donor_id, "تأكيد التبرع", `تم تأكيد تبرعك بمبلغ ${amount}`, "donation_confirmed", tx.id).catch(() => {})
+
+    if (hasCampaign || hasCase) {
+      ;(async () => {
+        try {
+          const targetId = campaign_id || case_id
+          const col = hasCampaign ? collections.campaigns() : collections.cases()
+          const target = await col.findOne(
+            { id: targetId },
+            { projection: { _id: 0, raised_amount: 1, target_amount: 1 } }
+          )
+          if (target?.target_amount != null && target.raised_amount >= target.target_amount) {
+            const field = hasCampaign ? "campaign_id" : "case_id"
+            const donorIds = await collections.donations().distinct("donor_id", { [field]: targetId })
+            await Promise.allSettled(
+              donorIds.map((id) =>
+                notify(id, "اكتملت الحملة!", "تم استيفاء الهدف المطلوب للحملة", "campaign_completed", targetId)
+              )
+            )
+          }
+        } catch (_) {}
+      })()
+    }
 
     return res.status(201).json(await decorateDonation(tx.created))
   } catch (err) {

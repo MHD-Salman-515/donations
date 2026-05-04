@@ -43,6 +43,7 @@ import { publicStoreProductsRoutes, storeProductsRoutes } from "./routes/storePr
 import ordersRoutes from "./routes/orders.routes.js"
 import adminStoresRoutes from "./routes/admin.stores.routes.js"
 import accountRoutes from "./routes/account.routes.js"
+import notificationsRoutes from "./routes/notifications.routes.js"
 
 const app = express()
 
@@ -126,6 +127,7 @@ app.use("/api/public/store-products", publicStoreProductsRoutes)
 app.use("/api/orders", ordersRoutes)
 app.use("/api/admin/stores", adminStoresRoutes)
 app.use("/api/account", accountRoutes)
+app.use("/api/notifications", notificationsRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
