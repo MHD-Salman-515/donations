@@ -4,6 +4,7 @@ import {
   addCaseDocument,
   createCase,
   getPublicCase,
+  getPublicCaseDocuments,
   listMyCases,
   listPublicCases,
   mapPublicCases,
@@ -46,6 +47,7 @@ adminCaseDocumentsRoutes.patch("/case-documents/:docId/verify", verifyCaseDocume
 const publicCasesRoutes = Router()
 publicCasesRoutes.get("/map", mapPublicCases)
 publicCasesRoutes.get("/", listPublicCases)
+publicCasesRoutes.get("/:id/documents", getPublicCaseDocuments)
 publicCasesRoutes.get("/:id", getPublicCase)
 
 export {

@@ -274,6 +274,23 @@ export async function getPublicCase(req, res) {
   }
 }
 
+export async function getPublicCaseDocuments(req, res) {
+  try {
+    const id = toId(req.params.id)
+    if (!id) return res.status(400).json({ message: "invalid case id" })
+
+    const documents = await collections
+      .caseDocuments()
+      .find({ case_id: id, verified: true }, { projection: { _id: 0 } })
+      .sort({ created_at: 1 })
+      .toArray()
+
+    return res.json({ data: documents, meta: null })
+  } catch (err) {
+    return res.status(500).json({ message: "failed to get case documents", error: err.message })
+  }
+}
+
 export async function mapPublicCases(req, res) {
   try {
     const parsed = validatePublicMapQuery(req.query || {})
