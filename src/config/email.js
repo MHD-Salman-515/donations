@@ -11,10 +11,15 @@ const transporter = nodemailer.createTransport({
 })
 
 export async function sendOtpEmail(to, otp) {
-  await transporter.sendMail({
-    from: process.env.SMTP_USER,
-    to,
-    subject: "Your verification code",
-    html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes. Do not share it with anyone.</p>`,
-  })
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to,
+      subject: "Your verification code",
+      html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes. Do not share it with anyone.</p>`,
+    })
+  } catch (err) {
+    console.error("EMAIL ERROR:", err.message, err.code)
+    throw err
+  }
 }

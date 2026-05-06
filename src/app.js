@@ -46,6 +46,7 @@ import accountRoutes from "./routes/account.routes.js"
 import notificationsRoutes from "./routes/notifications.routes.js"
 
 const app = express()
+app.set("trust proxy", 1)
 
 app.use(helmet())
 
