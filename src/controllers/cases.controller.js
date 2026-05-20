@@ -103,16 +103,17 @@ export async function createCase(req, res) {
 
     ;(async () => {
       try {
-        const admins = await collections
-          .users()
-          .find({ role: "admin", status: "active" }, { projection: { _id: 0, id: 1 } })
-          .toArray()
+        const [notifUser, admins] = await Promise.all([
+          collections.users().findOne({ id: Number(req.user.id) }, { projection: { _id: 0, name: 1 } }),
+          collections.users().find({ role: "admin", status: "active" }, { projection: { _id: 0, id: 1 } }).toArray(),
+        ])
+        const senderName = notifUser?.name || "مستفيد"
         await Promise.allSettled(
           admins.map((a) =>
             notify(
               a.id,
               "حالة جديدة تحتاج مراجعة",
-              `قدّم ${req.user?.name || ""} حالة جديدة: ${payload.title}`,
+              `قدّم ${senderName} حالة جديدة: ${payload.title}`,
               "new_case",
               id
             )

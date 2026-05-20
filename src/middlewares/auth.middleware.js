@@ -17,8 +17,7 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ message: "invalid/expired token" })
   }
 
-  // TODO: enforce typ === "access" strictly after all clients migrate to typ-bearing tokens.
-  if (payload?.typ && payload.typ !== "access") {
+  if (payload?.typ !== "access") {
     return res.status(401).json({ message: "invalid token type" })
   }
 

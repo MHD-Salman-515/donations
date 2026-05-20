@@ -125,7 +125,7 @@ export function validateCreateCaseBody(body) {
   const description = normalizeText(body?.description)
   const category = normalizeText(body?.category)
   const currency = normalizeText(body?.currency)
-  const status = body?.status === undefined ? "draft" : normalizeText(body.status)
+  const status = "draft"
   const priority = body?.priority ? normalizeText(body.priority) : "normal"
   const privacy_mode = body?.privacy_mode ? normalizeText(body.privacy_mode) : "public"
   const target_amount = toNumber(body?.target_amount)
@@ -142,7 +142,6 @@ export function validateCreateCaseBody(body) {
   ) {
     return { ok: false, message: "type, title, description, category, target_amount, currency are required" }
   }
-  if (!ALLOWED_CASE_CREATE_STATUSES.includes(status)) return { ok: false, message: "invalid status" }
   if (!ALLOWED_CASE_PRIORITIES.includes(priority)) return { ok: false, message: "invalid priority" }
   if (!ALLOWED_PRIVACY_MODES.includes(privacy_mode)) return { ok: false, message: "invalid privacy_mode" }
   if (target_amount <= 0) return { ok: false, message: "target_amount must be > 0" }
@@ -266,7 +265,7 @@ export function validateCreateCaseDocumentBody(body) {
 export function validateAdminStatusPatchBody(body) {
   const status = normalizeText(body?.status)
   const rejection_reason = normalizeText(body?.rejection_reason) || null
-  const allowed = ["under_review", "approved", "rejected", "active", "paused", "completed"]
+  const allowed = ["submitted", "under_review", "approved", "rejected", "active", "paused", "completed"]
 
   if (!allowed.includes(status)) return { ok: false, message: "invalid status" }
   if (status === "rejected" && !rejection_reason) {

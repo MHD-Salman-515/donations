@@ -121,6 +121,15 @@ export async function listAdminCases(req, res) {
   }
 }
 
+const VALID_TRANSITIONS = {
+  draft:        ["submitted"],
+  submitted:    ["under_review"],
+  under_review: ["approved", "rejected"],
+  approved:     ["active", "paused", "completed"],
+  active:       ["paused", "completed", "rejected"],
+  paused:       ["active", "completed"],
+}
+
 export async function patchCaseStatus(req, res) {
   try {
     const id = toId(req.params.id)
@@ -131,6 +140,11 @@ export async function patchCaseStatus(req, res) {
 
     const row = await collections.cases().findOne({ id }, { projection: { _id: 0, id: 1, status: 1 } })
     if (!row) return res.status(404).json({ message: "case not found" })
+
+    const allowedTransitions = VALID_TRANSITIONS[row.status] || []
+    if (!allowedTransitions.includes(valid.value.status)) {
+      return res.status(400).json({ message: "invalid status transition" })
+    }
 
     const now = new Date()
     const updates = {

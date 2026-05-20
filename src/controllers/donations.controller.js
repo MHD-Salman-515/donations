@@ -247,9 +247,12 @@ export async function createDonation(req, res) {
           if (target?.target_amount != null && target.raised_amount >= target.target_amount) {
             const field = hasCampaign ? "campaign_id" : "case_id"
             const donorIds = await collections.donations().distinct("donor_id", { [field]: targetId })
+            const completionTitle = hasCampaign ? "اكتملت الحملة!" : "اكتملت الحالة!"
+            const completionMessage = hasCampaign ? "تم استيفاء الهدف المطلوب للحملة" : "اكتملت الحالة! شكراً لمساهمتك"
+            const completionType = hasCampaign ? "campaign_completed" : "case_completed"
             await Promise.allSettled(
               donorIds.map((id) =>
-                notify(id, "اكتملت الحملة!", "تم استيفاء الهدف المطلوب للحملة", "campaign_completed", targetId)
+                notify(id, completionTitle, completionMessage, completionType, targetId)
               )
             )
           }
