@@ -1,0 +1,29 @@
+name: Run Database Seed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    name: Run Database Seed
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Run seed
+        run: node seeds/seed.js
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          DB_NAME: ${{ secrets.DB_NAME }}

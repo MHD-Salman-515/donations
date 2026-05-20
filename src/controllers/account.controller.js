@@ -6,6 +6,7 @@ import {
   validateChangePasswordBody,
 } from "../validators/account.validation.js"
 import { uploadBuffer } from "../config/cloudinary.js"
+import { notify } from "../config/notifications.js"
 
 function toId(value) {
   const id = Number(value)
@@ -164,6 +165,26 @@ export async function submitIdentityVerification(req, res) {
       entity_id: userId,
       meta: { national_id },
     })
+
+    ;(async () => {
+      try {
+        const admins = await collections
+          .users()
+          .find({ role: "admin", status: "active" }, { projection: { _id: 0, id: 1 } })
+          .toArray()
+        await Promise.allSettled(
+          admins.map((a) =>
+            notify(
+              a.id,
+              "طلب توثيق هوية جديد",
+              `قدّم ${user.name || ""} طلب توثيق هوية`,
+              "identity_request",
+              userId
+            )
+          )
+        )
+      } catch (_) {}
+    })()
 
     return res.json({ data: user, meta: null })
   } catch (err) {

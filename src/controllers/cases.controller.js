@@ -1,4 +1,5 @@
 import { collections, nextSequence } from "../config/db.js"
+import { notify } from "../config/notifications.js"
 import {
   ALLOWED_CASE_EDITABLE_STATUSES,
   ALLOWED_CASE_PRIORITIES,
@@ -99,6 +100,27 @@ export async function createCase(req, res) {
     })
 
     const created = await collections.cases().findOne({ id }, { projection: { _id: 0 } })
+
+    ;(async () => {
+      try {
+        const admins = await collections
+          .users()
+          .find({ role: "admin", status: "active" }, { projection: { _id: 0, id: 1 } })
+          .toArray()
+        await Promise.allSettled(
+          admins.map((a) =>
+            notify(
+              a.id,
+              "حالة جديدة تحتاج مراجعة",
+              `قدّم ${req.user?.name || ""} حالة جديدة: ${payload.title}`,
+              "new_case",
+              id
+            )
+          )
+        )
+      } catch (_) {}
+    })()
+
     return res.status(201).json({ data: created, meta: null })
   } catch (err) {
     return res.status(500).json({ message: "failed to create case", error: err.message })
