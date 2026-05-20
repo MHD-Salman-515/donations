@@ -34,6 +34,162 @@ function geoLocation(idx) {
   return { type: "Point", coordinates: c.coordinates, city: c.city, country: "سوريا" }
 }
 
+async function seedMainSections(db, now) {
+  await db.collection("main_sections").deleteMany({})
+
+  const sections = [
+    {
+      key: "medical",
+      title: { ar: "القسم الطبي", en: "Medical" },
+      summary: { ar: "دعم المرضى وتغطية تكاليف العمليات والأدوية والعلاج لمن لا يستطيع تحمّل النفقات.", en: "Supporting patients by covering surgery, medication, and treatment costs for those in need." },
+      icon: "heart-pulse",
+      color: "#EF4444",
+      badge: "طبي",
+      order: 1,
+      isActive: true,
+      categories: [
+        { name: "علاج كيميائي" },
+        { name: "جراحة" },
+        { name: "أدوية مزمنة" },
+        { name: "غسيل كلوي" },
+        { name: "علاج إشعاعي" },
+        { name: "أطراف اصطناعية" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "education",
+      title: { ar: "قسم التعليم", en: "Education" },
+      summary: { ar: "مساعدة الطلاب والأيتام بالرسوم الدراسية والقرطاسية والمنح لضمان استمرار التعليم.", en: "Helping students and orphans with tuition, stationery, and scholarships to ensure education continues." },
+      icon: "graduation-cap",
+      color: "#3B82F6",
+      badge: "تعليم",
+      order: 2,
+      isActive: true,
+      categories: [
+        { name: "رسوم دراسية" },
+        { name: "قرطاسية" },
+        { name: "منح جامعية" },
+        { name: "تعليم مهني" },
+        { name: "دعم أيتام" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "relief",
+      title: { ar: "قسم الإغاثة", en: "Relief" },
+      summary: { ar: "مساعدات غذائية وشتوية طارئة للأسر المتضررة والنازحين داخل سوريا.", en: "Emergency food and winter aid for affected families and displaced persons inside Syria." },
+      icon: "hand-heart",
+      color: "#F59E0B",
+      badge: "إغاثة",
+      order: 3,
+      isActive: true,
+      categories: [
+        { name: "سلة غذائية" },
+        { name: "كسوة شتوية" },
+        { name: "مواد إيواء" },
+        { name: "وقود تدفئة" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "reconstruction",
+      title: { ar: "قسم إعادة الإعمار", en: "Reconstruction" },
+      summary: { ar: "دعم ترميم المنازل المتضررة وإعادة البناء الجزئي مع توثيق قبل وبعد وتقارير ميدانية.", en: "Supporting home restoration and partial rebuilding with before/after documentation and field reports." },
+      icon: "home-modern",
+      color: "#22C55E",
+      badge: "إعمار",
+      order: 4,
+      isActive: true,
+      categories: [
+        { name: "ترميم منزل" },
+        { name: "إعادة بناء" },
+        { name: "تأهيل مدرسة" },
+        { name: "بنية تحتية" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "orphans",
+      title: { ar: "كفالة الأيتام", en: "Orphan Sponsorship" },
+      summary: { ar: "كفالة شهرية طويلة الأمد للأيتام مع خصوصية عالية وتقارير شهرية واضحة للكافلين.", en: "Long-term monthly sponsorship for orphans with high privacy and clear monthly reports for sponsors." },
+      icon: "shield-heart",
+      color: "#A855F7",
+      badge: "أيتام",
+      order: 5,
+      isActive: true,
+      categories: [
+        { name: "كفالة شهرية" },
+        { name: "تعليم يتيم" },
+        { name: "رعاية صحية" },
+        { name: "مصروف يومي" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "shelter",
+      title: { ar: "المأوى والسكن", en: "Shelter & Housing" },
+      summary: { ar: "تأمين السكن المؤقت ودعم إيجار المنازل للأسر النازحة والمحتاجة.", en: "Providing temporary shelter and rental support for displaced and needy families." },
+      icon: "building-house",
+      color: "#06B6D4",
+      badge: "مأوى",
+      order: 6,
+      isActive: true,
+      categories: [
+        { name: "إيجار سكن" },
+        { name: "سكن مؤقت" },
+        { name: "أثاث أساسي" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "elderly",
+      title: { ar: "رعاية كبار السن", en: "Elderly Care" },
+      summary: { ar: "رعاية شهرية لكبار السن تشمل الأدوية والغذاء والتدفئة وزيارات متابعة بهدف العيش بكرامة.", en: "Monthly care for the elderly including medicine, food, heating, and follow-up visits for dignified living." },
+      icon: "heart-handshake",
+      color: "#F97316",
+      badge: "كبار السن",
+      order: 7,
+      isActive: true,
+      categories: [
+        { name: "أدوية" },
+        { name: "غذاء شهري" },
+        { name: "تدفئة" },
+        { name: "رعاية صحية" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      key: "humanitarian",
+      title: { ar: "المساعدات الإنسانية", en: "Humanitarian Aid" },
+      summary: { ar: "حملات جماعية لتوزيع الغذاء والكسوة والدعم الاجتماعي حسب المناطق مع توثيق بالصور.", en: "Collective campaigns for distributing food, clothing, and social support by region with photo documentation." },
+      icon: "globe-alt",
+      color: "#EC4899",
+      badge: "إنساني",
+      order: 8,
+      isActive: true,
+      categories: [
+        { name: "توزيع غذاء" },
+        { name: "كسوة عامة" },
+        { name: "دعم نفسي" },
+        { name: "مستلزمات أساسية" },
+      ],
+      created_at: now,
+      updated_at: now,
+    },
+  ]
+
+  await db.collection("main_sections").insertMany(sections)
+  console.log(`✓ Main sections: ${sections.length}`)
+}
+
 async function run() {
   const client = new MongoClient(MONGODB_URI)
   await client.connect()
@@ -473,7 +629,10 @@ async function run() {
   })))
   console.log(`✓ Advertisements: ${adsRaw.length}`)
 
-  // ── 12. RESET COUNTERS ────────────────────────────────────────────────────
+  // ── 12. MAIN SECTIONS ─────────────────────────────────────────────────────
+  await seedMainSections(db, now)
+
+  // ── 13. RESET COUNTERS ────────────────────────────────────────────────────
   const counters = {
     users: 20, campaigns: 20, cases: 20, donations: 20,
     partners: 5, store_products: 20, advertisements: 5, emergency_fund: 1,
@@ -490,7 +649,7 @@ async function run() {
   console.log("\n========== Seed Summary ==========")
   const summary = [
     "users","partners","campaigns","cases","store_products",
-    "donations","emergency_fund","advertisements","settings",
+    "donations","emergency_fund","advertisements","settings","main_sections",
   ]
   for (const col of summary) {
     const count = await db.collection(col).countDocuments()
