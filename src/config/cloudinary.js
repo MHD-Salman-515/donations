@@ -17,4 +17,8 @@ export function uploadBuffer(buffer, options = {}) {
   })
 }
 
+export function uploadDataUri(dataUri, options = {}) {
+  return cloudinary.uploader.upload(dataUri, options)
+}
+
 export default cloudinary

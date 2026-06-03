@@ -1,4 +1,5 @@
 import { collections, nextSequence } from "../config/db.js"
+import { uploadDataUri } from "../config/cloudinary.js"
 import { logAudit } from "../utils/audit.js"
 import {
   validateCreateStoreProductBody,
@@ -86,8 +87,23 @@ async function enrichWithPartners(products) {
   })
 }
 
+async function resolveImageUrl(body) {
+  const raw = typeof body?.image_url === "string" ? body.image_url.trim() : ""
+  if (!raw.startsWith("data:image")) return { ok: true }
+  try {
+    const uploaded = await uploadDataUri(raw, { folder: "store_products" })
+    body.image_url = uploaded.secure_url
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: "failed to upload image" }
+  }
+}
+
 export async function createStoreProduct(req, res) {
   try {
+    const img = await resolveImageUrl(req.body || {})
+    if (!img.ok) return res.status(400).json({ ok: false, message: img.message })
+
     const valid = validateCreateStoreProductBody(req.body || {})
     if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
 
@@ -176,6 +192,9 @@ export async function updateMyStoreProduct(req, res) {
       .storeProducts()
       .findOne({ id, partner_id: req.storePartner.id }, { projection: { _id: 0 } })
     if (!current) return res.status(404).json({ ok: false, message: "product not found" })
+
+    const img = await resolveImageUrl(req.body || {})
+    if (!img.ok) return res.status(400).json({ ok: false, message: img.message })
 
     const valid = validateUpdateStoreProductBody(req.body || {})
     if (!valid.ok) return res.status(400).json({ ok: false, message: valid.message })
